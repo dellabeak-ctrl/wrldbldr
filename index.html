@@ -169,14 +169,16 @@
     background:var(--card-face); color:var(--card-color);
     font-size:38px; font-weight:700; font-family: Georgia, "Times New Roman", serif;
   }
-  .card-close{
-    position:absolute; top:5px; right:5px; width:20px; height:20px;
+  .card-close, .card-rotate{
+    position:absolute; top:5px; width:20px; height:20px;
     background:rgba(0,0,0,.55); border:none; color:#fff; border-radius:50%;
     cursor:pointer; font-size:11px; line-height:1; display:none;
     align-items:center; justify-content:center; padding:0; z-index:2;
   }
-  .card:hover .card-close{ display:flex; }
-  .card-close:hover{ background:rgba(0,0,0,.8); }
+  .card-close{ right:5px; }
+  .card-rotate{ right:29px; }
+  .card:hover .card-close, .card:hover .card-rotate{ display:flex; }
+  .card-close:hover, .card-rotate:hover{ background:rgba(0,0,0,.8); }
 
   #empty-state{
     position:fixed; top:56px; left:196px; right:0; bottom:0;
@@ -700,7 +702,8 @@
       number: number,
       x: x, y: y,
       text: "",
-      z: z
+      z: z,
+      rotation: 0
     };
     state.cards.push(card);
     renderCard(card);
@@ -717,12 +720,14 @@
     el.style.left = card.x + "px";
     el.style.top = card.y + "px";
     el.style.zIndex = card.z;
+    el.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
     el.style.setProperty("--card-color", deck.color);
     el.innerHTML =
       '<div class="card-art-wrap">' +
         '<img class="card-art" alt="">' +
         '<div class="card-number">' + card.number + '</div>' +
       '</div>' +
+      '<button class="card-rotate" title="Rotate card">⟳</button>' +
       '<button class="card-close" title="Remove card">✕</button>';
 
     // Look for a matching photo, named like "region-7.png" inside a
@@ -742,11 +747,12 @@
         artImg.remove();
       }
     };
-    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + card.number + ".png";
+    var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
+    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".png";
 
     // drag (repositioning only — does not change stacking order)
     el.addEventListener("mousedown", function(e){
-      if (e.target.closest(".card-close")) return;
+      if (e.target.closest(".card-close") || e.target.closest(".card-rotate")) return;
       e.stopPropagation();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       function onMove(ev){
@@ -769,6 +775,13 @@
     el.querySelector(".card-close").addEventListener("click", function(e){
       e.stopPropagation();
       removeCard(card.id);
+    });
+
+    el.querySelector(".card-rotate").addEventListener("click", function(e){
+      e.stopPropagation();
+      card.rotation = ((card.rotation || 0) + 90) % 360;
+      el.style.transform = "rotate(" + card.rotation + "deg)";
+      saveState();
     });
 
     canvasLayer.appendChild(el);
