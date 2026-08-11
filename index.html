@@ -142,7 +142,8 @@
     position:fixed; top:56px; left:196px; right:0; bottom:0;
     overflow:hidden; cursor:grab;
     background-color: var(--bg);
-    background-image: radial-gradient(var(--bg-dot) 1.4px, transparent 1.4px);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='26'%3E%3Ccircle cx='2' cy='2' r='1.4' fill='%23232838'/%3E%3C/svg%3E");
+    background-repeat: repeat;
     background-size: 26px 26px;
   }
   #viewport.panning{ cursor:grabbing; }
@@ -720,7 +721,6 @@
     el.style.left = card.x + "px";
     el.style.top = card.y + "px";
     el.style.zIndex = card.z;
-    el.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
     el.style.setProperty("--card-color", deck.color);
     el.innerHTML =
       '<div class="card-art-wrap">' +
@@ -729,6 +729,11 @@
       '</div>' +
       '<button class="card-rotate" title="Rotate card">⟳</button>' +
       '<button class="card-close" title="Remove card">✕</button>';
+
+    // Only the artwork rotates — the buttons stay fixed to the card's
+    // actual top-right corner on screen, regardless of rotation.
+    var artWrap = el.querySelector(".card-art-wrap");
+    artWrap.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
 
     // Look for a matching photo, named like "region-7.png" inside a
     // "regions" folder beside the HTML file. If it loads, it fills the
@@ -780,7 +785,7 @@
     el.querySelector(".card-rotate").addEventListener("click", function(e){
       e.stopPropagation();
       card.rotation = ((card.rotation || 0) + 90) % 360;
-      el.style.transform = "rotate(" + card.rotation + "deg)";
+      artWrap.style.transform = "rotate(" + card.rotation + "deg)";
       saveState();
     });
 
@@ -821,11 +826,30 @@
     toast("All decks reshuffled");
   });
 
+  // Warm the browser's image cache for every possible card in the
+  // background, so by the time a card is actually drawn its photo is
+  // already cached and appears instantly instead of loading on demand.
+  function preloadCardImages(){
+    DECKS.forEach(function(deck){
+      for (var n = 1; n <= deck.count; n++) {
+        var padded = n < 10 ? "0" + n : "" + n;
+        var img = new Image();
+        img.src = deck.key + "s/" + deck.key + "-" + padded + ".png";
+      }
+    });
+  }
+
   // ---------- Init ----------
   renderDecks();
   if (!state.pan.x && !state.pan.y) { state.pan = { x: 40, y: 40 }; }
   applyTransform();
   renderAllCards();
+
+  if (window.requestIdleCallback) {
+    requestIdleCallback(preloadCardImages);
+  } else {
+    setTimeout(preloadCardImages, 200);
+  }
 
 })();
 </script>
