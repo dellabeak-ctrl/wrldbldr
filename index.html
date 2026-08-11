@@ -382,13 +382,14 @@
       toast(deck.name + " deck was empty — reshuffled a fresh set of " + deck.count);
     }
     var number = state.decks[deckKey].pop();
-    state.drawCount++;
 
-    var r = viewport.getBoundingClientRect();
-    var center = screenToCanvas(r.width/2, r.height/2);
-    var cascade = state.drawCount % 8;
-    var x = center.x - 95 + cascade * 24;
-    var y = center.y - 95 + cascade * 18;
+    // Position is driven purely by draw order: the 1st card ever drawn
+    // sits at the anchor ("front"), and each subsequent draw steps
+    // further down-and-right ("further back"), regardless of deck.
+    var STEP_X = 60, STEP_Y = 45;
+    var x = state.drawCount * STEP_X;
+    var y = state.drawCount * STEP_Y;
+    state.drawCount++;
 
     var card = {
       id: state.nextId++,
