@@ -154,12 +154,13 @@
 
   /* ---------- Cards (image only, no chrome) ---------- */
   .card{
-    position:absolute; width:190px; height:190px;
-    cursor:grab;
+    position:absolute; top:0; left:0; width:190px; height:190px;
+    cursor:grab; will-change:transform; backface-visibility:hidden;
   }
   .card:active{ cursor:grabbing; }
   .card-art-wrap{
     position:relative; width:100%; height:100%; overflow:hidden;
+    will-change:transform; backface-visibility:hidden;
   }
   .card-art{
     position:absolute; inset:0; width:100%; height:100%;
@@ -718,8 +719,10 @@
     var el = document.createElement("div");
     el.className = "card";
     el.id = "card-" + card.id;
-    el.style.left = card.x + "px";
-    el.style.top = card.y + "px";
+    // Position via a compositor-only transform (not left/top) so dragging
+    // never triggers layout/paint — this is what was causing the smeared
+    // trailing lines and the janky feel while moving cards.
+    el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
     el.style.zIndex = card.z;
     el.style.setProperty("--card-color", deck.color);
     el.innerHTML =
@@ -765,8 +768,7 @@
         var dy = (ev.clientY - start.y) / state.scale;
         card.x = start.cx + dx;
         card.y = start.cy + dy;
-        el.style.left = card.x + "px";
-        el.style.top = card.y + "px";
+        el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
       }
       function onUp(){
         window.removeEventListener("mousemove", onMove);
