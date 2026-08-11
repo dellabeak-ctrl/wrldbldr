@@ -764,7 +764,7 @@
         artImg.remove();
       }
     };
-    artImg.src = "cards/" + card.deckKey + "-" + card.number + ".png";
+    artImg.src = "cards/" + card.deckKey + "/" + card.deckKey + "-" + card.number + ".png";
 
     // drag (repositioning only — does not change stacking order)
     el.addEventListener("mousedown", function(e){
