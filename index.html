@@ -215,7 +215,6 @@
     pan: { x: 0, y: 0 },
     scale: 1,
     nextId: 1,
-    nextZ: 1,
     drawCount: 0
   };
 
@@ -383,12 +382,16 @@
     }
     var number = state.decks[deckKey].pop();
 
-    // Position is driven purely by draw order: the 1st card ever drawn
-    // sits at the anchor ("front"), and each subsequent draw steps
-    // further down-and-right ("further back"), regardless of deck.
-    var STEP_X = 60, STEP_Y = 45;
-    var x = state.drawCount * STEP_X;
-    var y = state.drawCount * STEP_Y;
+    var r = viewport.getBoundingClientRect();
+    var center = screenToCanvas(r.width/2, r.height/2);
+    var cascade = state.drawCount % 8;
+    var x = center.x - 95 + cascade * 24;
+    var y = center.y - 95 + cascade * 18;
+
+    // Stacking order is fixed by draw order: the very first card drawn
+    // always renders on top of every card drawn after it, permanently.
+    // Dragging a card to reposition it does not change this stacking.
+    var z = 1000000 - state.drawCount;
     state.drawCount++;
 
     var card = {
@@ -397,7 +400,7 @@
       number: number,
       x: x, y: y,
       text: "",
-      z: state.nextZ++
+      z: z
     };
     state.cards.push(card);
     renderCard(card);
@@ -423,11 +426,10 @@
       '<div class="card-number">' + card.number + '</div>' +
       '<div class="card-notes" contenteditable="true" data-placeholder="tap to add notes / card text…"></div>';
 
-    // drag
+    // drag (repositioning only — does not change stacking order)
     el.addEventListener("mousedown", function(e){
       if (e.target.closest(".card-close") || e.target.closest(".card-notes")) return;
       e.stopPropagation();
-      bringToFront(card);
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       function onMove(ev){
         var dx = (ev.clientX - start.x) / state.scale;
@@ -446,8 +448,6 @@
       window.addEventListener("mouseup", onUp);
     });
 
-    el.addEventListener("mousedown", function(){ bringToFront(card); }, true);
-
     el.querySelector(".card-close").addEventListener("click", function(e){
       e.stopPropagation();
       removeCard(card.id);
@@ -461,12 +461,6 @@
     });
 
     canvasLayer.appendChild(el);
-  }
-
-  function bringToFront(card){
-    card.z = state.nextZ++;
-    var el = document.getElementById("card-" + card.id);
-    if (el) el.style.zIndex = card.z;
   }
 
   function removeCard(id){
