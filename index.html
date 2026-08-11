@@ -151,50 +151,32 @@
     transform-origin: 0 0;
   }
 
-  /* ---------- Cards ---------- */
+  /* ---------- Cards (image only, no chrome) ---------- */
   .card{
     position:absolute; width:190px; height:190px;
-    background:var(--card-face); color:var(--card-face-text);
-    border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.45);
-    display:flex; flex-direction:column; cursor:grab;
-    border:1px solid rgba(0,0,0,.15);
+    cursor:grab;
   }
   .card:active{ cursor:grabbing; }
-  .card-head{
-    background:var(--card-color); color:#fff; padding:7px 10px;
-    border-radius:9px 9px 0 0; display:flex; align-items:center; justify-content:space-between;
-    font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.6px;
-  }
-  .card-close{
-    background:rgba(255,255,255,.18); border:none; color:#fff; width:18px; height:18px;
-    border-radius:50%; cursor:pointer; font-size:12px; line-height:1; display:flex;
-    align-items:center; justify-content:center; padding:0;
-  }
-  .card-close:hover{ background:rgba(255,255,255,.35); }
   .card-art-wrap{
-    flex:0 0 auto; position:relative; display:flex;
-    align-items:center; justify-content:center;
+    position:relative; width:100%; height:100%; overflow:hidden;
   }
-  .card.has-art .card-art-wrap{ flex:1; overflow:hidden; }
   .card-art{
     position:absolute; inset:0; width:100%; height:100%;
     object-fit:cover; display:none;
   }
   .card-number{
-    text-align:center; font-size:38px; font-weight:700;
-    font-family: Georgia, "Times New Roman", serif; padding:10px 0 4px;
-    color:var(--card-color);
+    width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+    background:var(--card-face); color:var(--card-color);
+    font-size:38px; font-weight:700; font-family: Georgia, "Times New Roman", serif;
   }
-  .card-notes{
-    flex:1; margin:0 10px 10px; padding:6px 7px; border-radius:6px;
-    background:rgba(0,0,0,.045); font-size:11.5px; line-height:1.4;
-    overflow-y:auto; cursor:text; outline:none;
+  .card-close{
+    position:absolute; top:5px; right:5px; width:20px; height:20px;
+    background:rgba(0,0,0,.55); border:none; color:#fff; border-radius:50%;
+    cursor:pointer; font-size:11px; line-height:1; display:none;
+    align-items:center; justify-content:center; padding:0; z-index:2;
   }
-  .card.has-art .card-notes{ flex:0 0 40px; }
-  .card-notes:empty::before{
-    content: attr(data-placeholder); color:#8a8375;
-  }
-  .card-notes:focus{ background:rgba(0,0,0,.09); }
+  .card:hover .card-close{ display:flex; }
+  .card-close:hover{ background:rgba(0,0,0,.8); }
 
   #empty-state{
     position:fixed; top:56px; left:196px; right:0; bottom:0;
@@ -737,25 +719,21 @@
     el.style.zIndex = card.z;
     el.style.setProperty("--card-color", deck.color);
     el.innerHTML =
-      '<div class="card-head">' +
-        '<span>' + deck.name + ' ' + card.number + '</span>' +
-        '<button class="card-close" title="Remove card">✕</button>' +
-      '</div>' +
       '<div class="card-art-wrap">' +
         '<img class="card-art" alt="">' +
         '<div class="card-number">' + card.number + '</div>' +
       '</div>' +
-      '<div class="card-notes" contenteditable="true" data-placeholder="tap to add notes / card text…"></div>';
+      '<button class="card-close" title="Remove card">✕</button>';
 
-    // Look for a matching photo in the /cards folder, named like
-    // "region-7.png". If it loads, show it in place of the plain number;
-    // if not (or on a stale cache), fall back to the number, no error shown.
+    // Look for a matching photo, named like "region-7.png" inside a
+    // "regions" folder beside the HTML file. If it loads, it fills the
+    // card completely; if not (or on a stale cache), fall back to the
+    // plain number, no error shown.
     var artImg = el.querySelector(".card-art");
     var numberEl = el.querySelector(".card-number");
     artImg.onload = function(){
       artImg.style.display = "block";
       numberEl.style.display = "none";
-      el.classList.add("has-art");
     };
     artImg.onerror = function(){
       if (/\.png$/i.test(artImg.src)) {
@@ -768,7 +746,7 @@
 
     // drag (repositioning only — does not change stacking order)
     el.addEventListener("mousedown", function(e){
-      if (e.target.closest(".card-close") || e.target.closest(".card-notes")) return;
+      if (e.target.closest(".card-close")) return;
       e.stopPropagation();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       function onMove(ev){
@@ -793,13 +771,6 @@
       removeCard(card.id);
     });
 
-    var notes = el.querySelector(".card-notes");
-    notes.addEventListener("mousedown", function(e){ e.stopPropagation(); });
-    notes.addEventListener("input", function(){
-      card.text = notes.innerText;
-      saveState();
-    });
-
     canvasLayer.appendChild(el);
   }
 
@@ -815,8 +786,6 @@
     canvasLayer.innerHTML = "";
     state.cards.forEach(function(card){
       renderCard(card);
-      var el = document.getElementById("card-" + card.id);
-      if (el && card.text) el.querySelector(".card-notes").innerText = card.text;
     });
     updateEmptyState();
   }
