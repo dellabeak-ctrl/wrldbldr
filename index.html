@@ -58,6 +58,45 @@
   #zoomctl .btn{ padding:6px 10px; }
   #zoompct{ font-size:12px; color:var(--text-dim); width:42px; text-align:center; }
 
+  /* ---------- Workspaces (save/load) ---------- */
+  #workspacesWrap{ position:relative; }
+  #workspacesPanel{
+    position:absolute; top:calc(100% + 8px); right:0; width:290px;
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5); padding:12px; z-index:60;
+  }
+  #workspacesPanel.hidden{ display:none; }
+  #workspacesPanel h3{
+    font-size:11px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--text-dim); margin:0 0 8px;
+  }
+  #activeSaveRow{
+    font-size:12px; color:var(--text-dim); margin-bottom:10px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .save-new-row{ display:flex; gap:6px; margin-bottom:10px; }
+  .save-new-row input{
+    flex:1; min-width:0; background:#151824; border:1px solid var(--panel-border); color:var(--text);
+    border-radius:6px; padding:6px 8px; font-size:13px; outline:none;
+  }
+  .save-new-row input:focus{ border-color:var(--accent); }
+  #savesList{ max-height:230px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+  .save-item{
+    background:#252a3b; border:1px solid var(--panel-border); border-radius:7px;
+    padding:8px 9px; display:flex; align-items:center; justify-content:space-between; gap:6px;
+  }
+  .save-item.active{ border-color:var(--accent); }
+  .save-item-info{ min-width:0; }
+  .save-item-name{ font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .save-item-meta{ font-size:10.5px; color:var(--text-dim); margin-top:1px; }
+  .save-item-actions{ display:flex; gap:2px; flex:0 0 auto; }
+  .save-item-actions button{
+    background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:12px;
+    padding:4px 6px; border-radius:4px;
+  }
+  .save-item-actions button:hover{ background:#3a4059; color:var(--text); }
+  #savesEmpty{ font-size:12px; color:var(--text-dim); text-align:center; padding:8px 0 2px; }
+
   /* ---------- Sidebar (decks) ---------- */
   #sidebar{
     position:fixed; top:56px; bottom:0; left:0; width:196px;
@@ -167,6 +206,19 @@
     <span class="hint">click a deck to draw · drag cards to arrange · scroll to zoom · drag empty space to pan</span>
   </div>
   <div id="topbar-right">
+    <div id="workspacesWrap">
+      <button class="btn" id="workspacesBtn">💾 Workspaces</button>
+      <div id="workspacesPanel" class="hidden">
+        <h3>Saved Worlds</h3>
+        <div id="activeSaveRow"></div>
+        <div class="save-new-row">
+          <input type="text" id="saveNameInput" placeholder="Name this world…" maxlength="60">
+          <button class="btn" id="saveAsBtn">Save as new</button>
+        </div>
+        <div id="savesList"></div>
+        <div id="savesEmpty" style="display:none;">No saved worlds yet.</div>
+      </div>
+    </div>
     <div id="zoomctl">
       <button class="btn" id="zoomOut">−</button>
       <span id="zoompct">100%</span>
@@ -208,6 +260,7 @@
   DECKS.forEach(function(d){ DECK_MAP[d.key] = d; });
 
   var STORAGE_KEY = "world-builder-state-v1";
+  var SAVES_KEY = "world-builder-saves-v1";
 
   var state = {
     decks: {},      // key -> array of remaining numbers
@@ -215,7 +268,9 @@
     pan: { x: 0, y: 0 },
     scale: 1,
     nextId: 1,
-    drawCount: 0
+    drawCount: 0,
+    activeSaveId: null,   // id of the named workspace currently loaded, if any
+    activeSaveName: null
   };
 
   function shuffledRange(n){
@@ -266,6 +321,14 @@
   var emptyState = document.getElementById("empty-state");
   var zoompct = document.getElementById("zoompct");
   var toastEl = document.getElementById("toast");
+  var workspacesWrap = document.getElementById("workspacesWrap");
+  var workspacesBtn = document.getElementById("workspacesBtn");
+  var workspacesPanel = document.getElementById("workspacesPanel");
+  var activeSaveRow = document.getElementById("activeSaveRow");
+  var saveNameInput = document.getElementById("saveNameInput");
+  var saveAsBtn = document.getElementById("saveAsBtn");
+  var savesList = document.getElementById("savesList");
+  var savesEmpty = document.getElementById("savesEmpty");
 
   var toastTimer = null;
   function toast(msg){
@@ -274,6 +337,187 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function(){ toastEl.classList.remove("show"); }, 1800);
   }
+
+  // ---------- Workspaces (named saves, stored in localStorage) ----------
+  function loadSaves(){
+    try {
+      var raw = localStorage.getItem(SAVES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function persistSaves(saves){
+    try { localStorage.setItem(SAVES_KEY, JSON.stringify(saves)); } catch (e) {}
+  }
+  function snapshotForSave(){
+    return JSON.parse(JSON.stringify({
+      decks: state.decks,
+      cards: state.cards,
+      pan: state.pan,
+      scale: state.scale,
+      drawCount: state.drawCount,
+      nextId: state.nextId
+    }));
+  }
+  function formatSaveDate(ts){
+    var d = new Date(ts);
+    return d.toLocaleDateString(undefined, { month:"short", day:"numeric" }) + " " +
+           d.toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" });
+  }
+
+  function openWorkspacesPanel(){
+    workspacesPanel.classList.remove("hidden");
+    renderWorkspacesPanel();
+  }
+  function closeWorkspacesPanel(){
+    workspacesPanel.classList.add("hidden");
+  }
+  workspacesBtn.addEventListener("click", function(e){
+    e.stopPropagation();
+    if (workspacesPanel.classList.contains("hidden")) openWorkspacesPanel();
+    else closeWorkspacesPanel();
+  });
+  workspacesPanel.addEventListener("click", function(e){ e.stopPropagation(); });
+  document.addEventListener("click", function(){ closeWorkspacesPanel(); });
+
+  function renderWorkspacesPanel(){
+    var saves = loadSaves();
+
+    // Active-save row
+    activeSaveRow.innerHTML = "";
+    var active = state.activeSaveId ? saves.find(function(s){ return s.id === state.activeSaveId; }) : null;
+    if (state.activeSaveId && !active) { state.activeSaveId = null; state.activeSaveName = null; }
+    var label = document.createElement("span");
+    label.textContent = active ? ("Editing: " + active.name) : "Unsaved board";
+    activeSaveRow.appendChild(label);
+    if (active) {
+      var updateBtn = document.createElement("button");
+      updateBtn.className = "btn";
+      updateBtn.style.padding = "4px 9px";
+      updateBtn.textContent = "Update";
+      updateBtn.addEventListener("click", function(){ updateActiveSave(); });
+      activeSaveRow.appendChild(updateBtn);
+    }
+
+    // Saved list
+    savesList.innerHTML = "";
+    if (saves.length === 0) {
+      savesEmpty.style.display = "block";
+    } else {
+      savesEmpty.style.display = "none";
+      saves.slice().sort(function(a,b){ return b.savedAt - a.savedAt; }).forEach(function(save){
+        var count = save.snapshot && save.snapshot.cards ? save.snapshot.cards.length : 0;
+        var row = document.createElement("div");
+        row.className = "save-item" + (save.id === state.activeSaveId ? " active" : "");
+        row.innerHTML =
+          '<div class="save-item-info">' +
+            '<div class="save-item-name"></div>' +
+            '<div class="save-item-meta">' + count + ' card' + (count === 1 ? "" : "s") + ' · ' + formatSaveDate(save.savedAt) + '</div>' +
+          '</div>' +
+          '<div class="save-item-actions">' +
+            '<button data-act="load" title="Load this world">Load</button>' +
+            '<button data-act="rename" title="Rename">✎</button>' +
+            '<button data-act="delete" title="Delete">✕</button>' +
+          '</div>';
+        row.querySelector(".save-item-name").textContent = save.name;
+        row.querySelector('[data-act="load"]').addEventListener("click", function(){ loadSaveById(save.id); });
+        row.querySelector('[data-act="rename"]').addEventListener("click", function(){ renameSaveById(save.id); });
+        row.querySelector('[data-act="delete"]').addEventListener("click", function(){ deleteSaveById(save.id); });
+        savesList.appendChild(row);
+      });
+    }
+  }
+
+  function saveAsNew(name){
+    var saves = loadSaves();
+    var save = {
+      id: "s" + Date.now() + Math.floor(Math.random() * 1000),
+      name: name,
+      savedAt: Date.now(),
+      snapshot: snapshotForSave()
+    };
+    saves.push(save);
+    persistSaves(saves);
+    state.activeSaveId = save.id;
+    state.activeSaveName = save.name;
+    saveState();
+    renderWorkspacesPanel();
+    toast('Saved as "' + name + '"');
+  }
+
+  function updateActiveSave(){
+    if (!state.activeSaveId) return;
+    var saves = loadSaves();
+    var save = saves.find(function(s){ return s.id === state.activeSaveId; });
+    if (!save) return;
+    save.snapshot = snapshotForSave();
+    save.savedAt = Date.now();
+    persistSaves(saves);
+    renderWorkspacesPanel();
+    toast('Updated "' + save.name + '"');
+  }
+
+  function loadSaveById(id){
+    var saves = loadSaves();
+    var save = saves.find(function(s){ return s.id === id; });
+    if (!save) return;
+    if (state.cards.length > 0 &&
+        !confirm('Load "' + save.name + '"? This replaces your current board — any unsaved changes will be lost.')) {
+      return;
+    }
+    var snap = JSON.parse(JSON.stringify(save.snapshot));
+    state.decks = snap.decks;
+    state.cards = snap.cards;
+    state.pan = snap.pan;
+    state.scale = snap.scale;
+    state.drawCount = snap.drawCount;
+    state.nextId = snap.nextId;
+    state.activeSaveId = save.id;
+    state.activeSaveName = save.name;
+
+    renderDecks();
+    renderAllCards();
+    applyTransform();
+    saveState();
+    closeWorkspacesPanel();
+    toast('Loaded "' + save.name + '"');
+  }
+
+  function renameSaveById(id){
+    var saves = loadSaves();
+    var save = saves.find(function(s){ return s.id === id; });
+    if (!save) return;
+    var name = prompt("Rename world:", save.name);
+    if (name === null) return;
+    name = name.trim();
+    if (!name) return;
+    save.name = name;
+    persistSaves(saves);
+    if (state.activeSaveId === id) { state.activeSaveName = name; saveState(); }
+    renderWorkspacesPanel();
+  }
+
+  function deleteSaveById(id){
+    var saves = loadSaves();
+    var save = saves.find(function(s){ return s.id === id; });
+    if (!save) return;
+    if (!confirm('Delete "' + save.name + '"? This cannot be undone.')) return;
+    saves = saves.filter(function(s){ return s.id !== id; });
+    persistSaves(saves);
+    if (state.activeSaveId === id) { state.activeSaveId = null; state.activeSaveName = null; saveState(); }
+    renderWorkspacesPanel();
+    toast('Deleted "' + save.name + '"');
+  }
+
+  saveAsBtn.addEventListener("click", function(){
+    var name = saveNameInput.value.trim();
+    if (!name) { toast("Enter a name for this world first"); saveNameInput.focus(); return; }
+    saveAsNew(name);
+    saveNameInput.value = "";
+  });
+  saveNameInput.addEventListener("keydown", function(e){
+    if (e.key === "Enter") saveAsBtn.click();
+  });
+  saveNameInput.addEventListener("mousedown", function(e){ e.stopPropagation(); });
 
   // ---------- Deck sidebar ----------
   function renderDecks(){
