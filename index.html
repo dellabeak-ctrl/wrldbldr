@@ -749,30 +749,41 @@
       numberEl.style.display = "none";
     };
     artImg.onerror = function(){
-      if (/\.png$/i.test(artImg.src)) {
-        artImg.src = artImg.src.replace(/\.png$/i, ".jpg");
+      if (/\.jpg$/i.test(artImg.src)) {
+        artImg.src = artImg.src.replace(/\.jpg$/i, ".png");
       } else {
         artImg.remove();
       }
     };
     var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
-    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".png";
+    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".jpg";
 
     // drag (repositioning only — does not change stacking order)
     el.addEventListener("mousedown", function(e){
       if (e.target.closest(".card-close") || e.target.closest(".card-rotate")) return;
       e.stopPropagation();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
+      var rafId = null;
+
+      // Batch position updates to at most once per animation frame instead
+      // of once per mousemove event (which can fire far more often than
+      // the screen refreshes) — this is what keeps dragging smooth even
+      // when the card is compositing a large photo.
+      function applyPosition(){
+        rafId = null;
+        el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
+      }
       function onMove(ev){
         var dx = (ev.clientX - start.x) / state.scale;
         var dy = (ev.clientY - start.y) / state.scale;
         card.x = start.cx + dx;
         card.y = start.cy + dy;
-        el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
+        if (rafId === null) rafId = requestAnimationFrame(applyPosition);
       }
       function onUp(){
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        if (rafId !== null) { cancelAnimationFrame(rafId); applyPosition(); }
         saveState();
       }
       window.addEventListener("mousemove", onMove);
@@ -836,7 +847,7 @@
       for (var n = 1; n <= deck.count; n++) {
         var padded = n < 10 ? "0" + n : "" + n;
         var img = new Image();
-        img.src = deck.key + "s/" + deck.key + "-" + padded + ".png";
+        img.src = deck.key + "s/" + deck.key + "-" + padded + ".jpg";
       }
     });
   }
