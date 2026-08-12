@@ -333,12 +333,12 @@
   "use strict";
 
   var DECKS = [
-    { key:"region",    name:"Region",    desc:"Main terrain type, hub for other cards", count:32, color:"var(--c-region)"    },
-    { key:"landmark",  name:"Landmark",  desc:"Geographical sites and points of interest",         count:48, color:"var(--c-landmark)"  },
-    { key:"namesake",  name:"Namesake",  desc:"In-world nicknames for areas",  count:48, color:"var(--c-namesake)"  },
-    { key:"origin",    name:"Origin",    desc:"Significant past event(s)",  count:32, color:"var(--c-origin)"    },
-    { key:"attribute", name:"Attribute", desc:"Present-day features",   count:48, color:"var(--c-attribute)" },
-    { key:"advent",    name:"Advent",    desc:"Future events and story hooks", count:32, color:"var(--c-advent)" }
+    { key:"region",    name:"Region",    desc:"Main terrain type, hub for other cards", count:32, color:"var(--c-region)", layer:600000     },
+    { key:"landmark",  name:"Landmark",  desc:"Geographical sites and points of interest",         count:48, color:"var(--c-landmark)", layer: 500000  },
+    { key:"namesake",  name:"Namesake",  desc:"In-world nicknames for areas",  count:48, color:"var(--c-namesake)", layer:400000  },
+    { key:"origin",    name:"Origin",    desc:"Significant past event(s)",  count:32, color:"var(--c-origin)", layer:300000    },
+    { key:"attribute", name:"Attribute", desc:"Present-day features",   count:48, color:"var(--c-attribute)", layer:200000 },
+    { key:"advent",    name:"Advent",    desc:"Future events and story hooks", count:32, color:"var(--c-advent)", layer:100000 }
   ];
   var DECK_MAP = {};
   DECKS.forEach(function(d){ DECK_MAP[d.key] = d; });
@@ -784,10 +784,8 @@
     var x = center.x - 95 + cascade * 24;
     var y = center.y - 95 + cascade * 18;
 
-    // Stacking order is fixed by draw order: the very first card drawn
-    // always renders on top of every card drawn after it, permanently.
-    // Dragging a card to reposition it does not change this stacking.
-    var z = 1000000 - state.drawCount;
+    // Stacking order is same as category hierarchy
+    var z = deck.layer + state.drawCount;
     state.drawCount++;
 
     var card = {
