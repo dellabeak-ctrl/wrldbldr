@@ -197,6 +197,34 @@
     opacity:0; transition: opacity .25s ease, transform .25s ease; pointer-events:none;
   }
   #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  /* ---------- Info / How to use ---------- */
+  #infoOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6);
+    display:none; align-items:center; justify-content:center; z-index:200;
+  }
+  #infoOverlay.show{ display:flex; }
+  #infoModal{
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:12px;
+    width:540px; max-width:90vw; max-height:80vh; overflow-y:auto;
+    padding:22px 26px 26px; box-shadow:0 20px 60px rgba(0,0,0,.6);
+  }
+  #infoModal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:6px; position:sticky; top:-22px; background:var(--panel); padding-top:4px;
+  }
+  #infoModal h2{ margin:0; font-size:18px; }
+  #infoModal .info-close{
+    background:rgba(255,255,255,.08); border:none; color:var(--text); width:26px; height:26px;
+    border-radius:50%; cursor:pointer; font-size:13px; display:flex;
+    align-items:center; justify-content:center; padding:0; flex:0 0 auto;
+  }
+  #infoModal .info-close:hover{ background:rgba(255,255,255,.18); }
+  #infoModal h3{
+    font-size:13px; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--accent); margin:18px 0 6px;
+  }
+  #infoModal p{ margin:0 0 4px; font-size:13.5px; line-height:1.55; color:var(--text); }
+  #infoModal a{ color:var(--accent); }
 </style>
 </head>
 <body>
@@ -233,6 +261,28 @@
     </div>
     <button class="btn" id="reshuffleAll">↻ Reshuffle all decks</button>
     <button class="btn danger" id="clearBoard">Clear board</button>
+    <button class="btn" id="infoBtn">ⓘ How to Use</button>
+  </div>
+</div>
+
+<div id="infoOverlay">
+  <div id="infoModal">
+    <div id="infoModal-head">
+      <h2>How to Use</h2>
+      <button class="info-close" id="infoCloseBtn" title="Close">✕</button>
+    </div>
+    <h3>Drawing cards</h3>
+    <p>Click any deck in the left sidebar to draw a random card from it.</p>
+    <h3>Moving cards</h3>
+    <p>Hold Control and click-drag, or drag with two fingers on a trackpad, to move a card.</p>
+    <h3>Rotating & removing</h3>
+    <p>Hover over a card to reveal a rotate (⟳) and remove (✕) button.</p>
+    <h3>Zoom & pan</h3>
+    <p>Scroll to zoom, or use the +/− controls. Drag empty space to pan.</p>
+    <h3>Saving your world</h3>
+    <p>Use the Workspaces panel to save, load, rename, or delete named worlds.</p>
+  </div>
+</div>
   </div>
 </div>
 
@@ -338,6 +388,20 @@
   var exportSavesBtn = document.getElementById("exportSavesBtn");
   var importSavesBtn = document.getElementById("importSavesBtn");
   var importSavesInput = document.getElementById("importSavesInput");
+  var infoBtn = document.getElementById("infoBtn");
+  var infoOverlay = document.getElementById("infoOverlay");
+  var infoCloseBtn = document.getElementById("infoCloseBtn");
+
+  function openInfo(){ infoOverlay.classList.add("show"); }
+  function closeInfo(){ infoOverlay.classList.remove("show"); }
+  infoBtn.addEventListener("click", openInfo);
+  infoCloseBtn.addEventListener("click", closeInfo);
+  infoOverlay.addEventListener("click", function(e){
+    if (e.target === infoOverlay) closeInfo();
+  });
+  window.addEventListener("keydown", function(e){
+    if (e.key === "Escape") closeInfo();
+  });
 
   var toastTimer = null;
   function toast(msg){
