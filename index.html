@@ -255,12 +255,12 @@
   "use strict";
 
   var DECKS = [
-    { key:"region",    name:"Region",    desc:"The terrain and heart of the microsetting.", count:32, color:"var(--c-region)"    },
-    { key:"landmark",  name:"Landmark",  desc:"A unique site or point of interest.",         count:48, color:"var(--c-landmark)"  },
-    { key:"namesake",  name:"Namesake",  desc:"An in-world nickname the area is known by.",  count:48, color:"var(--c-namesake)"  },
-    { key:"origin",    name:"Origin",    desc:"A significant event from the area's past.",  count:32, color:"var(--c-origin)"    },
-    { key:"attribute", name:"Attribute", desc:"A present-day feature of the area/people.",   count:48, color:"var(--c-attribute)" },
-    { key:"advent",    name:"Advent",    desc:"An event that could change the area's future.", count:32, color:"var(--c-advent)" }
+    { key:"region",    name:"Region",    desc:"Main terrain type, hub for other cards", count:32, color:"var(--c-region)"    },
+    { key:"landmark",  name:"Landmark",  desc:"Geographical sites and points of interest",         count:48, color:"var(--c-landmark)"  },
+    { key:"namesake",  name:"Namesake",  desc:"In-world nicknames for areas",  count:48, color:"var(--c-namesake)"  },
+    { key:"origin",    name:"Origin",    desc:"Significant past event(s)",  count:32, color:"var(--c-origin)"    },
+    { key:"attribute", name:"Attribute", desc:"Present-day features",   count:48, color:"var(--c-attribute)" },
+    { key:"advent",    name:"Advent",    desc:"Future events and story hooks", count:32, color:"var(--c-advent)" }
   ];
   var DECK_MAP = {};
   DECKS.forEach(function(d){ DECK_MAP[d.key] = d; });
