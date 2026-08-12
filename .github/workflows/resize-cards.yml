@@ -3,6 +3,12 @@ name: Resize card images
 # Runs automatically whenever new/changed files land in any of the six
 # card folders — resizes/crops them to a uniform square JPEG and commits
 # the result straight back to the repo. No local script needed.
+#
+# You can also trigger this manually from the "Actions" tab on GitHub
+# (click "Resize card images" -> "Run workflow"), and optionally check
+# the "force" box to reprocess every image, including ones that were
+# already converted before — useful whenever you change TRIM_PERCENT or
+# TARGET_SIZE in resize_cards.py and want it to apply retroactively.
 on:
   push:
     paths:
@@ -12,6 +18,12 @@ on:
       - "origins/**"
       - "attributes/**"
       - "advents/**"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Reprocess every image, even already-processed ones"
+        type: boolean
+        default: false
 
 jobs:
   resize:
@@ -29,9 +41,17 @@ jobs:
         run: pip install pillow
 
       - name: Resize card images
-        run: python resize_cards.py .
+        run: |
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            python resize_cards.py . --force
+          else
+            python resize_cards.py .
+          fi
 
       - name: Commit resized images
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Auto-resize card images"
+          # Using the default GITHUB_TOKEN (not a personal token) means
+          # this commit does NOT re-trigger the workflow, so there's no
+          # infinite loop.
