@@ -725,13 +725,19 @@
     el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
     el.style.zIndex = card.z;
     el.style.setProperty("--card-color", deck.color);
+    el.setAttribute("draggable", "false");
     el.innerHTML =
       '<div class="card-art-wrap">' +
-        '<img class="card-art" alt="">' +
+        '<img class="card-art" alt="" draggable="false">' +
         '<div class="card-number">' + card.number + '</div>' +
       '</div>' +
       '<button class="card-rotate" title="Rotate card">⟳</button>' +
       '<button class="card-close" title="Remove card">✕</button>';
+
+    // Belt-and-suspenders: fully block the browser's native drag-and-drop
+    // gesture on this card (it was creating a "ghost" image on left-click
+    // that fought with our own right-click drag logic below).
+    el.addEventListener("dragstart", function(e){ e.preventDefault(); });
 
     // Only the artwork rotates — the buttons stay fixed to the card's
     // actual top-right corner on screen, regardless of rotation.
@@ -758,10 +764,17 @@
     var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
     artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".jpg";
 
-    // drag (repositioning only — does not change stacking order)
+    // Right-click on the card to suppress the browser's context menu,
+    // since right-click-drag is how cards are moved now.
+    el.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+
+    // drag (repositioning only — does not change stacking order).
+    // Requires the right mouse button — left-click no longer drags.
     el.addEventListener("mousedown", function(e){
+      if (e.button !== 2) return;
       if (e.target.closest(".card-close") || e.target.closest(".card-rotate")) return;
       e.stopPropagation();
+      e.preventDefault();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       var rafId = null;
 
