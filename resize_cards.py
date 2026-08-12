@@ -44,6 +44,14 @@ TARGET_SIZE = 600          # pixels, square — edit this if you want bigger/sma
 JPEG_QUALITY = 82          # 1-95, higher = better quality & bigger file
 VALID_EXT = (".png", ".jpg", ".jpeg")
 
+# Some source exports have a thin bleed/crop-mark border baked in around
+# the actual card art; others don't. Trimming a small fixed percentage off
+# every edge before cropping removes that border consistently wherever it
+# exists, without meaningfully affecting images that never had one.
+# Raise this (e.g. 0.05) if marks are still visible after processing;
+# lower it (e.g. 0.01) if it looks like it's cutting into real content.
+TRIM_PERCENT = 0.03
+
 
 def already_processed(path):
     """Skip files that are already a correctly-sized .jpg, so re-running
@@ -64,6 +72,14 @@ def process_image(path):
     if img.mode != "RGB":
         img = img.convert("RGB")
 
+    # Trim a small fixed margin off every edge first, to strip out any
+    # bleed border / crop marks some source images have baked in.
+    w, h = img.size
+    trim_w = int(w * TRIM_PERCENT)
+    trim_h = int(h * TRIM_PERCENT)
+    if trim_w > 0 or trim_h > 0:
+        img = img.crop((trim_w, trim_h, w - trim_w, h - trim_h))
+
     # Center-crop to a square (matches the site's object-fit: cover look)
     w, h = img.size
     side = min(w, h)
@@ -83,11 +99,15 @@ def process_image(path):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python resize_cards.py /path/to/project")
+    if len(sys.argv) < 2:
+        print("Usage: python resize_cards.py /path/to/project [--force]")
         sys.exit(1)
 
     root = sys.argv[1]
+    force = "--force" in sys.argv[2:]
+    if force:
+        print("--force: reprocessing every image, including ones already at the target size.\n")
+
     total = 0
     for category in CATEGORIES:
         folder = os.path.join(root, category)
@@ -98,7 +118,7 @@ def main():
             if not filename.lower().endswith(VALID_EXT):
                 continue
             full_path = os.path.join(folder, filename)
-            if already_processed(full_path):
+            if not force and already_processed(full_path):
                 continue
             try:
                 new_path = process_image(full_path)
