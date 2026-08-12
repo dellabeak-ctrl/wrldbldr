@@ -1,0 +1,37 @@
+name: Resize card images
+
+# Runs automatically whenever new/changed files land in any of the six
+# card folders — resizes/crops them to a uniform square JPEG and commits
+# the result straight back to the repo. No local script needed.
+on:
+  push:
+    paths:
+      - "regions/**"
+      - "landmarks/**"
+      - "namesakes/**"
+      - "origins/**"
+      - "attributes/**"
+      - "advents/**"
+
+jobs:
+  resize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Pillow
+        run: pip install pillow
+
+      - name: Resize card images
+        run: python resize_cards.py .
+
+      - name: Commit resized images
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-resize card images"
