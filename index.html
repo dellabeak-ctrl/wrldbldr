@@ -904,7 +904,10 @@
       function onUp(){
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
-        if (rafId !== null) { cancelAnimationFrame(rafId); applyPosition(); }
+        if (rafId !== null) cancelAnimationFrame(rafId);
+        card.x = Math.round(card.x / SNAP_SIZE) * SNAP_SIZE;
+        card.y = Math.round(card.y / SNAP_SIZE) * SNAP_SIZE;
+        applyPosition();
         saveState();
       }
       window.addEventListener("mousemove", onMove);
