@@ -885,6 +885,7 @@
       e.preventDefault();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       var rafId = null;
+      var SNAP_SIZE = 190 / 4;
 
       // Batch position updates to at most once per animation frame instead
       // of once per mousemove event (which can fire far more often than
