@@ -744,15 +744,22 @@
     if (isPanning) { isPanning = false; viewport.classList.remove("panning"); saveState(); }
   });
   // ---------- Region background glow ----------
-  // Every Region card on the board contributes a soft, multi-color blob
-  // to the canvas background, centered at that card's current on-screen
-  // position and built from its photo's 3 most common colors. Blobs move
-  // live as their card is dragged, stay correctly placed on pan/zoom
-  // (handled centrally inside applyTransform), and grow larger the more
-  // other cards are clustered near that region (each non-Region card is
-  // assigned to whichever Region is spatially closest to it).
+  // Every Region card on the board radiates an aura built from its photo's
+  // 3 most common colors, kept visible as distinct bands (not averaged into
+  // a single blur) and sized to reach the far edge of the workspace no
+  // matter where the card sits. Auras move live as their card is dragged,
+  // stay correctly placed on pan/zoom (handled centrally inside
+  // applyTransform), and where two+ region auras overlap they blend
+  // together naturally through alpha compositing. Auras also grow a larger
+  // solid "core" the more other cards are clustered near that region (each
+  // non-Region card is assigned to whichever Region is spatially closest).
   var regionColorCache = {};   // card.number -> array of up to 3 dominant "rgb(...)" colors
   var hasRegionGlow = false;
+  function toRgba(rgbStr, alpha){
+    var m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgbStr);
+    if (!m) return rgbStr;
+    return "rgba(" + m[1] + "," + m[2] + "," + m[3] + "," + alpha + ")";
+  }
   function sampleDominantColors(img, count){
     var w = 24, h = 24;
     var c = document.createElement("canvas");
@@ -802,38 +809,36 @@
       });
       if (best !== null) counts[best] = (counts[best] || 0) + 1;
     });
-    var baseRadius = 340;     // canvas-space px at 100% zoom
-    var growthPerCard = 22;   // extra radius per card assigned to this region
-    var maxExtra = 260;       // cap on how big growth can get
-    // Stronger, wider blobs centered on each region card — these sit on
-    // top of the full-workspace wash below and give extra intensity near
-    // where the region actually is.
-    var blobLayers = regionCards.map(function(card){
+    var growthPerCard = 3;   // % of extra "solid core" band width per nearby card
+    var maxGrowth = 22;      // cap on that growth
+    // Each region gets its own radial gradient, sized with "farthest-corner"
+    // so it always reaches the far edge of the workspace regardless of
+    // where the card sits or how zoomed/panned the view is. Its 3 colors
+    // are laid out as distinct solid bands with short blend zones between
+    // them (not a single averaged color), and fade to low — but nonzero —
+    // alpha by the outer edge so it still tints the far corners while
+    // leaving room for another region's aura to show through and blend.
+    var layers = regionCards.map(function(card){
       var cx = state.pan.x + (card.x + 95) * state.scale;
       var cy = state.pan.y + (card.y + 95) * state.scale;
-      var extra = Math.min((counts[card.id] || 0) * growthPerCard, maxExtra);
-      var radius = (baseRadius + extra) * state.scale;
+      var growth = Math.min((counts[card.id] || 0) * growthPerCard, maxGrowth);
       var colors = regionColorCache[card.number];
-      var stops = colors.map(function(color, i){
-        return color + " " + Math.round((i / colors.length) * 70) + "%";
-      }).join(", ");
-      return "radial-gradient(circle " + radius + "px at " + cx + "px " + cy + "px, " + stops + ", transparent 100%)";
+      var b1 = Math.min(22 + growth, 55);          // color[0] solid core ends
+      var b2 = Math.min(Math.max(b1 + 12, 40), 68); // color[1] solid band starts
+      var b3 = Math.min(Math.max(b2 + 16, 58), 84); // color[1] solid band ends
+      var b4 = Math.min(Math.max(b3 + 12, 76), 94); // color[2] solid band starts
+      var stops = [
+        toRgba(colors[0], 0.6) + " 0%",
+        toRgba(colors[0], 0.6) + " " + b1 + "%",
+        toRgba(colors[1], 0.5) + " " + b2 + "%",
+        toRgba(colors[1], 0.5) + " " + b3 + "%",
+        toRgba(colors[2], 0.4) + " " + b4 + "%",
+        toRgba(colors[2], 0.18) + " 100%"
+      ].join(", ");
+      return "radial-gradient(circle farthest-corner at " + cx + "px " + cy + "px, " + stops + ")";
     });
-    // Full-workspace wash — blends every region's colors together into one
-    // smooth gradient that always covers the entire visible canvas, so
-    // there's no plain background left anywhere, even far from any card.
-    var allColors = [];
-    regionCards.forEach(function(card){
-      var colors = regionColorCache[card.number];
-      if (colors) allColors = allColors.concat(colors);
-    });
-    var washStops = allColors.map(function(color, i){
-      var pct = allColors.length > 1 ? Math.round((i / (allColors.length - 1)) * 100) : 50;
-      return color + " " + pct + "%";
-    }).join(", ");
-    var baseWash = "linear-gradient(120deg, " + washStops + ")";
-    regionGlow.style.backgroundImage = blobLayers.concat([baseWash]).join(", ");
-    if (!hasRegionGlow) { regionGlow.style.opacity = "0.4"; hasRegionGlow = true; }
+    regionGlow.style.backgroundImage = layers.join(", ");
+    if (!hasRegionGlow) { regionGlow.style.opacity = "0.6"; hasRegionGlow = true; }
   }
   // ---------- Cards ----------
   function updateEmptyState(){
