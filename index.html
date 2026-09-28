@@ -158,12 +158,12 @@
     background-blend-mode: screen;
   }
   #regionWash{
-    position:absolute; inset:0; opacity:.8;
+    position:absolute; inset:0; opacity:.7;
     background-blend-mode: screen;
     /* Paper absorbs ink unevenly: a tiling cloud-noise mask (panned/zoomed
        with the board in applyTransform) breaks the broad wash into soft,
        rough shapes around the smooth gradient cores. */
-    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 -.35'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.75 0 0 0 -.25'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   }
    #dotGrid{
     position:absolute; inset:0; z-index:1; pointer-events:none;
@@ -842,8 +842,8 @@
     function auras(radius){
       return layers.map(function(l){ return "radial-gradient(circle " + (radius * state.scale) + "px at " + l + ")"; }).join(", ");
     }
-    regionGlow.style.backgroundImage = auras(600);
-    regionWash.style.backgroundImage = auras(2400);
+    regionGlow.style.backgroundImage = auras(750);
+    regionWash.style.backgroundImage = auras(1500);
     if (!hasRegionGlow) { regionGlow.style.opacity = "1"; hasRegionGlow = true; }
   }
   // ---------- Cards ----------
