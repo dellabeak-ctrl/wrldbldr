@@ -169,6 +169,11 @@
     position:absolute; inset:0; z-index:1; pointer-events:none;
     display:none;
   }
+  #inkLayer{
+    position:absolute; top:0; left:0; transform-origin:0 0; z-index:1;
+    pointer-events:none; mix-blend-mode:multiply;
+  }
+  #inkLayer canvas{ position:absolute; transition:opacity .4s, filter 2.5s; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
     transform-origin: 0 0; z-index:2;
@@ -338,6 +343,7 @@
 <div id="viewport">
   <div id="mapTexture"></div>
   <div id="regionGlow"><div id="regionWash"></div></div>
+  <div id="inkLayer"></div>
   <div id="dotGrid"></div>
   <div id="canvas-layer"></div>
 </div>
@@ -407,6 +413,7 @@
   // ---------- DOM refs ----------
   var viewport = document.getElementById("viewport");
   var canvasLayer = document.getElementById("canvas-layer");
+  var inkLayer = document.getElementById("inkLayer");
   var regionGlow = document.getElementById("regionGlow");
   var regionWash = document.getElementById("regionWash");
   var mapTexture = document.getElementById("mapTexture");
@@ -693,7 +700,7 @@
   }
   // ---------- Pan / zoom ----------
   function applyTransform(){
-    canvasLayer.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.scale + ")";
+    canvasLayer.style.transform = inkLayer.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.scale + ")";
     zoompct.textContent = Math.round(state.scale * 100) + "%";
     mapTexture.style.backgroundPosition = regionWash.style.maskPosition = state.pan.x + "px " + state.pan.y + "px";
     mapTexture.style.backgroundSize = regionWash.style.maskSize = (1024 * state.scale) + "px";
@@ -768,17 +775,21 @@
     if (!m) return rgbStr;
     return "rgba(" + m[1] + "," + m[2] + "," + m[3] + "," + alpha + ")";
   }
-  function sampleDominantColors(img, count){
-    var w = 24, h = 24;
+  // 24x24 thumbnail of a card photo as RGBA bytes (null if the canvas is tainted).
+  function thumbnail(img){
     var c = document.createElement("canvas");
-    c.width = w; c.height = h;
+    c.width = c.height = 24;
     var ctx = c.getContext("2d");
     try {
-      ctx.drawImage(img, 0, 0, w, h);
-      var data = ctx.getImageData(0, 0, w, h).data;
+      ctx.drawImage(img, 0, 0, 24, 24);
+      return ctx.getImageData(0, 0, 24, 24).data;
     } catch (e) {
       return null;
     }
+  }
+  function sampleDominantColors(img, count){
+    var data = thumbnail(img);
+    if (!data) return null;
     var buckets = {};
     var STEP = 32;
     for (var i = 0; i < data.length; i += 4) {
@@ -846,6 +857,93 @@
     regionWash.style.backgroundImage = auras(1500);
     if (!hasRegionGlow) { regionGlow.style.opacity = "1"; hasRegionGlow = true; }
   }
+  // ---------- Ink tendrils ----------
+  // When cards settle into a cluster, ink bursts from the cluster's outer
+  // edges as curling, branching tendrils, coloured by the borders of its
+  // Region/Landmark cards, then dissolves into a soft wash. Each cluster's
+  // ink is one static canvas in #inkLayer (which pans/zooms with the board),
+  // keyed by its cards' ids and positions, so it only re-blooms on change.
+  var edgeCache = {};   // deckKey+number -> 32 border colors ("r,g,b"), clockwise from the right edge
+  var ink = {};         // cluster key -> its ink canvas (null if it has no colour source)
+  function sampleEdge(img){
+    var d = thumbnail(img), ring = [];
+    if (!d) return null;
+    for (var k = 0; k < 32; k++) {
+      var a = k / 32 * 2 * Math.PI, m = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+      var i = (Math.round(11.5 + 11.5 * Math.sin(a) / m) * 24 + Math.round(11.5 + 11.5 * Math.cos(a) / m)) * 4;
+      var lift = Math.max(0, 150 - Math.max(d[i], d[i+1], d[i+2]));   // keep ink off the very dark end
+      ring.push((d[i] + lift) + "," + (d[i+1] + lift) + "," + (d[i+2] + lift));
+    }
+    return ring;
+  }
+  function dropInk(k){
+    var cv = ink[k];
+    if (cv) { cv.style.opacity = 0; setTimeout(function(){ cv.remove(); }, 400); }
+    delete ink[k];
+  }
+  function liftInk(card){
+    Object.keys(ink).forEach(function(k){ if (ink[k] && ink[k].ids.indexOf(card.id) >= 0) dropInk(k); });
+  }
+  function refreshInk(){
+    var seen = {}, live = {};
+    state.cards.forEach(function(c){
+      if (seen[c.id]) return;
+      var g = [c]; seen[c.id] = true;   // flood-fill the cluster of (near-)touching cards
+      for (var i = 0; i < g.length; i++) state.cards.forEach(function(o){
+        if (!seen[o.id] && Math.abs(o.x - g[i].x) < 214 && Math.abs(o.y - g[i].y) < 214) { seen[o.id] = true; g.push(o); }
+      });
+      var key = g.map(function(o){ return o.id + "@" + o.x + "," + o.y + (edgeCache[o.deckKey + o.number] ? "*" : ""); }).sort().join(" ");
+      live[key] = true;
+      if (!ink[key]) ink[key] = bloom(g);
+    });
+    Object.keys(ink).forEach(function(k){ if (!live[k]) dropInk(k); });
+  }
+  function bloom(g){
+    var src = g.filter(function(c){ return edgeCache[c.deckKey + c.number]; });
+    if (!src.length) return null;
+    var xs = g.map(function(c){ return c.x; }), ys = g.map(function(c){ return c.y; });
+    var x0 = Math.min.apply(null, xs) - 300, y0 = Math.min.apply(null, ys) - 300;
+    var w = Math.max.apply(null, xs) + 490 - x0, h = Math.max.apply(null, ys) + 490 - y0;
+    var cv = document.createElement("canvas"), ctx = cv.getContext("2d");
+    cv.ids = g.map(function(c){ return c.id; });
+    cv.width = w; cv.height = h;
+    cv.style.cssText = "left:" + x0 + "px;top:" + y0 + "px;width:" + w + "px;height:" + h + "px";
+    ctx.translate(-x0, -y0);
+    ctx.lineCap = "round";
+    inkLayer.appendChild(cv);
+    var tips = [];
+    g.forEach(function(c){
+      for (var n = 0; n < 8; n++) {
+        // Random point on one of the card's 4 edges, heading outward.
+        var a = (Math.floor(Math.random() * 4) - 1) * Math.PI / 2, t = Math.random() * 190 - 95;
+        var x = c.x + 95 + 95 * Math.cos(a) - t * Math.sin(a), y = c.y + 95 + 95 * Math.sin(a) + t * Math.cos(a);
+        if (g.some(function(o){ return o !== c && Math.abs(x - o.x - 95) < 120 && Math.abs(y - o.y - 95) < 120; })) continue;
+        // Colour: the nearest Region/Landmark's border, on the side facing this point.
+        var s = src.reduce(function(b, o){ return Math.hypot(x - o.x, y - o.y) < Math.hypot(x - b.x, y - b.y) ? o : b; });
+        var k = Math.round((Math.atan2(y - s.y - 95, x - s.x - 95) - (s.rotation || 0) * Math.PI / 180) / (2 * Math.PI) * 32);
+        tips.push({ x: x, y: y, a: a + Math.random() - .5, c: (Math.random() - .5) * .06, w: 2 + Math.random() * 2, v: 3, col: edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32] });
+      }
+    });
+    (function grow(){
+      for (var r = 0; r < 2; r++) {
+        var next = [];
+        tips.forEach(function(t){
+          var x = t.x + Math.cos(t.a) * t.v, y = t.y + Math.sin(t.a) * t.v;
+          ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(x, y);
+          ctx.strokeStyle = "rgba(" + t.col + ",.03)"; ctx.lineWidth = t.w * 5; ctx.stroke();   // bleed
+          ctx.strokeStyle = "rgba(" + t.col + ",.5)"; ctx.lineWidth = t.w; ctx.stroke();        // core
+          t.x = x; t.y = y; t.a += t.c;
+          t.c = Math.max(-.15, Math.min(.15, t.c * 1.01 + (Math.random() - .5) * .02)); // wisp, curling tighter as it slows
+          t.v *= .99; t.w *= .99;
+          if (Math.random() < .006 * t.w) next.push({ x: x, y: y, a: t.a + (Math.random() < .5 ? -.5 : .5), c: -t.c, w: t.w * .7, v: t.v, col: t.col });
+          if (t.w > .4) next.push(t);
+        });
+        tips = next;
+      }
+      if (tips.length) requestAnimationFrame(grow); else cv.style.filter = "blur(6px) opacity(.7)";
+    })();
+    return cv;
+  }
   // ---------- Cards ----------
   function updateEmptyState(){
     emptyState.classList.toggle("hidden", state.cards.length > 0);
@@ -880,6 +978,7 @@
     updateEmptyState();
     saveState();
     updateRegionAuras();
+    refreshInk();
   }
   function renderCard(card){
     var deck = DECK_MAP[card.deckKey];
@@ -924,6 +1023,10 @@
           updateRegionAuras();
         }
       }
+      if (card.deckKey === "region" || card.deckKey === "landmark") {
+        edgeCache[card.deckKey + card.number] = sampleEdge(artImg);
+        refreshInk();
+      }
     };
     artImg.onerror = function(){
       if (/\.jpg$/i.test(artImg.src)) {
@@ -944,6 +1047,7 @@
       if (e.target.closest(".card-close") || e.target.closest(".card-rotate")) return;
       e.stopPropagation();
       e.preventDefault();
+      liftInk(card);
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       var rafId = null;
       var SNAP_SIZE = card.deckKey === "advent" ? 21 : 42;
@@ -975,6 +1079,7 @@
         card.y = snap(card.y, el.offsetHeight);
         applyPosition();
         saveState();
+        refreshInk();
       }
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
@@ -998,6 +1103,7 @@
     updateEmptyState();
     saveState();
     updateRegionAuras();
+    refreshInk();
   }
   function renderAllCards(){
     canvasLayer.innerHTML = "";
@@ -1005,6 +1111,7 @@
       renderCard(card);
     });
     updateEmptyState();
+    refreshInk();
   }
   document.getElementById("clearBoard").addEventListener("click", function(){
     if (state.cards.length === 0) return;
@@ -1013,6 +1120,7 @@
     canvasLayer.innerHTML = "";
     updateEmptyState();
     saveState();
+    refreshInk();
     toast("Board cleared");
   });
   document.getElementById("reshuffleAll").addEventListener("click", function(){
