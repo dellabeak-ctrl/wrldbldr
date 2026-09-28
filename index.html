@@ -155,7 +155,7 @@
     position:absolute; inset:0; z-index:1; pointer-events:none;
     mix-blend-mode: multiply; filter: saturate(1.5);
     opacity:0; transition:opacity 1.1s ease;
-    background-blend-mode: multiply;
+    background-blend-mode: screen;
   }
    #dotGrid{
     position:absolute; inset:0; z-index:1; pointer-events:none;
@@ -748,7 +748,8 @@
   // 3 most prominent colors (frequency × chroma), fading smoothly from one
   // to the next. Auras move live as their card is dragged, stay correctly
   // placed on pan/zoom (handled centrally inside applyTransform), and where
-  // two+ region auras overlap they multiply together like ink. Auras also
+  // two+ region auras overlap they screen together, fading back toward bare
+  // paper as more stack up. Auras also
   // spread further the more other cards are clustered near that region
   // (each non-Region card is assigned to whichever Region is closest).
   var regionColorCache = {};   // card.number -> array of up to 3 dominant "rgb(...)" colors
@@ -777,7 +778,8 @@
       if (!buckets[key]) buckets[key] = { r:0, g:0, b:0, n:0 };
       buckets[key].r += r; buckets[key].g += g; buckets[key].b += b; buckets[key].n++;
     }
-    var list = Object.keys(buckets).map(function(k){ return buckets[k]; });
+    var list = Object.keys(buckets).map(function(k){ return buckets[k]; })
+      .filter(function(k){ return Math.max(k.r, k.g, k.b) > 110 * k.n; }); // skip very dark colors
     // Rank by frequency × chroma so grey backgrounds don't win.
     // (max − min of the channel sums is exactly n × the average's chroma.)
     function score(k){ return Math.max(k.r, k.g, k.b) - Math.min(k.r, k.g, k.b); }
