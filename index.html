@@ -112,6 +112,7 @@
     position:fixed; top:56px; bottom:0; left:0; width:196px;
     background:var(--panel); border-right:1px solid var(--panel-border);
     overflow-y:auto; z-index:40; padding:12px 10px;
+    display:flex; flex-direction:column;
   }
   #sidebar h2{
     font-size:11px; text-transform:uppercase; letter-spacing:1px;
@@ -139,7 +140,28 @@
   }
   .deck-reshuffle:hover{ background:#3a4059; color:var(--text); }
   .deck.empty .deck-count{ color:#e8a33d; }
-  #sidebar-footer{ margin-top:6px; display:flex; flex-direction:column; gap:8px; }
+  #sidebar-footer{ margin-top:auto; padding-top:6px; display:flex; flex-direction:column; gap:8px; }
+  /* ---------- Ink mood dial ---------- */
+  #moodDial{
+    background:#252a3b; border:1px solid var(--panel-border); border-radius:8px;
+    padding:9px 12px 8px; cursor:grab; touch-action:none; outline:none;
+    transition:border-color .15s ease;
+  }
+  #moodDial:hover, #moodDial:focus-visible{ border-color:#3d4460; }
+  #moodDial.dragging{ cursor:grabbing; }
+  .mood-title{ font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); }
+  #moodDial svg{ display:block; width:100%; height:auto; overflow:visible; }
+  .mood-tick{ fill:var(--text); opacity:.55; }
+  .mood-needle{
+    fill:var(--accent); transform-origin:75px 72px;
+    transition:transform .55s cubic-bezier(.34,1.56,.64,1);   /* springy flick */
+    filter:drop-shadow(0 0 3px rgba(216,184,106,.55));
+  }
+  #moodDial.dragging .mood-needle{ transition:none; }
+  .mood-hub{ fill:var(--panel); stroke:var(--accent); stroke-width:2; }
+  .mood-labels{ display:flex; justify-content:space-between; margin-top:3px; font-size:11px; color:var(--text-dim); }
+  .mood-labels span{ transition:color .2s ease; }
+  .mood-labels .on{ color:var(--text); }
   /* ---------- Viewport / canvas ---------- */
   #viewport{
     position:fixed; top:56px; left:196px; right:0; bottom:0;
@@ -338,7 +360,25 @@
 <div id="sidebar">
   <h2>Decks</h2>
   <div id="deck-list"></div>
-  <div id="sidebar-footer"></div>
+  <div id="sidebar-footer">
+    <div id="moodDial" role="slider" tabindex="0" aria-label="Ink mood" aria-valuemin="-1" aria-valuemax="1">
+      <div class="mood-title">Ink mood</div>
+      <svg viewBox="0 0 150 84" aria-hidden="true">
+        <defs>
+          <linearGradient id="moodArc">
+            <stop offset="0" stop-color="#5d4f96"/><stop offset=".5" stop-color="#8b90a6"/><stop offset="1" stop-color="#f0cf7e"/>
+          </linearGradient>
+        </defs>
+        <path d="M15 72 A60 60 0 0 1 135 72" fill="none" stroke="url(#moodArc)" stroke-width="5" stroke-linecap="round"/>
+        <circle class="mood-tick" cx="18.6" cy="51.5" r="1.8"/>
+        <circle class="mood-tick" cx="75" cy="12" r="1.8"/>
+        <circle class="mood-tick" cx="131.4" cy="51.5" r="1.8"/>
+        <path class="mood-needle" d="M75 22 L78.5 72 L71.5 72 Z"/>
+        <circle class="mood-hub" cx="75" cy="72" r="6.5"/>
+      </svg>
+      <div class="mood-labels"><span>Moody</span><span>Bright</span></div>
+    </div>
+  </div>
 </div>
 <div id="viewport">
   <div id="mapTexture"></div>
@@ -865,7 +905,7 @@
   // keyed by its cards' ids and positions, so it only re-blooms on change.
   var edgeCache = {};   // deckKey+number -> 32 border colors ("r,g,b"), clockwise from the right edge
   var ink = {};         // cluster key -> its ink canvas (null if it has no colour source)
-  var INK = {           // tendril tuning (live-editable from the dev board)
+  var INK = {           // tendril tuning
     regionsMin: 7, regionsMax: 12,   // spawn regions per card, evenly spaced round its edge
     perRegion: 1,                    // tendrils per region
     jitter: .55,                     // drift of each region from even spacing (fraction of the gap)
@@ -877,11 +917,9 @@
     branchBias: 0,                   // > 0 branches more near a branch's start, < 0 more near its tip
     core: .19, bleed: .025, bleedWidth: 1.3,
     saturate: 1.4, brighten: .7,     // colour boost: saturation multiplier, 0-1 lift toward full brightness
-    blend: "normal",                 // how ink sits on the paper (normal = true glow colour, screen whitens, multiply stains)
     steps: 1, margin: 570,
-    blur: 80,                        // soft from the first stroke, not just once grown
-    dissolveBlur: 0, fade: 1, dissolveTime: 5.2,   // extra blur / final opacity eased in once grown
-    debug: false                     // flat red strokes, to check where tendrils actually go
+    blur: 94,                        // soft from the first stroke, not just once grown
+    dissolveBlur: 13, fade: 1, dissolveTime: 5.2   // extra blur / final opacity eased in once grown
   };
   function sampleEdge(img){
     var d = thumbnail(img), ring = [];
@@ -933,7 +971,6 @@
     cv.width = w; cv.height = h;
     cv.style.cssText = "left:" + x0 + "px;top:" + y0 + "px;width:" + w + "px;height:" + h + "px;" +
       "filter:blur(" + INK.blur + "px);transition:opacity .4s, filter " + INK.dissolveTime + "s";
-    inkLayer.style.mixBlendMode = INK.blend;
     ctx.translate(-x0, -y0);
     ctx.lineCap = "round";
     inkLayer.appendChild(cv);
@@ -950,7 +987,7 @@
         // Colour: the nearest Region/Landmark's border, on the side facing this point.
         var s = src.reduce(function(b, o){ return Math.hypot(x - o.x, y - o.y) < Math.hypot(x - b.x, y - b.y) ? o : b; });
         var k = Math.round((Math.atan2(y - s.y - 95, x - s.x - 95) - (s.rotation || 0) * Math.PI / 180) / (2 * Math.PI) * 32);
-        var col = INK.debug ? "255,0,0" : glowColor(edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32]);
+        var col = glowColor(edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32]);
         for (var j = 0; j < INK.perRegion; j++) {
           // Heading: mostly straight out, rarely out to the full spread, so tendrils
           // leave every side of a cluster instead of running along it.
@@ -1182,79 +1219,54 @@
       }
     });
   }
-  // ---------- Dev board (TEMPORARY: delete this whole block to remove it) ----------
-  // Live sliders for INK. Press ` to show/hide. Values persist in localStorage
-  // and the board re-blooms after each change; "Copy values" gives the JSON
-  // to paste back into INK once they're right.
-  (function(){
-    var RANGES = {
-      regionsMin:[1,30,1], regionsMax:[1,30,1], perRegion:[1,6,1], jitter:[0,1,.05], spread:[0,3,.05],
-      width:[1,200,1], widthJitter:[0,100,.5], widthDecay:[.95,1,.001], minWidth:[.1,60,.5],
-      speed:[.5,20,.1], speedDecay:[.95,1,.001],
-      curl:[0,.2,.005], curlDrift:[0,.15,.002], curlGrowth:[.85,1.05,.001], curlMax:[0,.4,.005],
-      branch:[0,.1,.001], branchAngle:[0,1.6,.05], branchWidth:[.1,1,.05], maxTips:[50,3000,50], branchBias:[-4,4,.1],
-      core:[0,1,.01], bleed:[0,.3,.005], bleedWidth:[1,8,.1], saturate:[0,3,.05], brighten:[0,1,.05],
-      steps:[1,12,1], margin:[100,1500,10], blur:[0,150,1], dissolveBlur:[0,100,1], fade:[0,1,.05], dissolveTime:[0,10,.1]
-    };
-    var BLENDS = ["normal", "screen", "multiply", "soft-light", "overlay", "lighten", "color-dodge", "plus-lighter"];
-    try {
-      var saved = JSON.parse(localStorage.getItem("ink-dev") || "{}");
-      Object.keys(saved).forEach(function(k){ if (k in INK) INK[k] = saved[k]; });
-    } catch (e) {}
-    var panel = document.createElement("div"), timer = null;
-    panel.style.cssText = "position:fixed;right:8px;bottom:8px;z-index:9999;max-height:85vh;overflow:auto;padding:8px;" +
-      "background:rgba(15,17,25,.92);color:#ddd;font:11px monospace;border-radius:6px";
-    panel.innerHTML = "<b>INK DEV</b> (` to hide)<br>";
-    function rebloom(){
-      try { localStorage.setItem("ink-dev", JSON.stringify(INK)); } catch (e) {}
-      Object.keys(ink).forEach(dropInk);
-      refreshInk();
-    }
-    function row(label){
-      var el = document.createElement("label");
-      el.style.cssText = "display:flex;gap:6px;align-items:center;justify-content:space-between";
-      el.append(label);
-      [].slice.call(arguments, 1).forEach(function(i){ el.append(i); });
-      panel.append(el);
-    }
-    Object.keys(INK).forEach(function(k){
-      if (typeof INK[k] === "boolean") {
-        var box = document.createElement("input");
-        box.type = "checkbox"; box.checked = INK[k];
-        box.onchange = function(){ INK[k] = box.checked; rebloom(); };
-        return row(k, box);
-      }
-      if (typeof INK[k] === "string") {
-        var sel = document.createElement("select");
-        BLENDS.forEach(function(b){ sel.add(new Option(b, b, false, b === INK[k])); });
-        sel.onchange = function(){ INK[k] = sel.value; rebloom(); };
-        return row(k, sel);
-      }
-      var range = document.createElement("input"), num = document.createElement("input");
-      range.type = "range"; num.type = "number"; num.style.width = "64px";
-      range.min = num.min = RANGES[k][0]; range.max = num.max = RANGES[k][1]; range.step = num.step = RANGES[k][2];
-      range.value = num.value = INK[k];
-      function set(v){ range.value = num.value = INK[k] = +v; clearTimeout(timer); timer = setTimeout(rebloom, 250); }
-      range.oninput = function(){ set(range.value); };
-      num.onchange = function(){ set(num.value); };
-      row(k, range, num);
-    });
-    var glow = document.createElement("input");
-    glow.type = "checkbox"; glow.checked = true;
-    glow.onchange = function(){ regionGlow.style.display = glow.checked ? "" : "none"; };
-    row("show glow", glow);
-    [["Re-bloom", rebloom],
-     ["Copy values", function(){ prompt("INK values:", JSON.stringify(INK)); }],
-     ["Reset", function(){ localStorage.removeItem("ink-dev"); location.reload(); }]].forEach(function(b){
-      var btn = document.createElement("button");
-      btn.textContent = b[0]; btn.onclick = b[1]; btn.style.margin = "6px 4px 0 0";
-      panel.append(btn);
-    });
-    document.body.append(panel);
-    window.addEventListener("keydown", function(e){
-      if (e.key === "`") panel.style.display = panel.style.display === "none" ? "" : "none";
-    });
-  })();
+  // ---------- Ink mood dial ----------
+  // Flick the needle across the semicircle to choose how ink sits on the
+  // parchment: Moody (multiply), the untagged default (soft-light), or
+  // Bright (overlay). Drag or click to aim it; it springs to the nearest stop.
+  var MOODS = ["multiply", "soft-light", "overlay"];
+  var moodDial = document.getElementById("moodDial");
+  var moodNeedle = moodDial.querySelector(".mood-needle");
+  var moodLabels = moodDial.querySelectorAll(".mood-labels span");
+  var aimingMood = false;
+  function aimNeedle(deg){ moodNeedle.style.transform = "rotate(" + deg + "deg)"; }
+  function setMood(i){   // -1 moody, 0 default, 1 bright
+    state.inkBlend = MOODS[i + 1];
+    inkLayer.style.mixBlendMode = state.inkBlend;
+    aimNeedle(i * 70);
+    moodLabels[0].classList.toggle("on", i < 0);
+    moodLabels[1].classList.toggle("on", i > 0);
+    moodDial.setAttribute("aria-valuenow", i);
+    moodDial.setAttribute("aria-valuetext", ["Moody", "Default", "Bright"][i + 1]);
+  }
+  function pointerAngle(e){   // degrees from straight up, measured at the hub (75, 72 of the 150x84 viewBox)
+    var r = moodNeedle.ownerSVGElement.getBoundingClientRect();
+    var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height * 72 / 84);
+    return Math.max(-85, Math.min(85, Math.atan2(dx, -dy) * 180 / Math.PI));
+  }
+  moodDial.addEventListener("pointerdown", function(e){
+    moodDial.setPointerCapture(e.pointerId);
+    aimingMood = true;
+    aimNeedle(pointerAngle(e));
+  });
+  moodDial.addEventListener("pointermove", function(e){
+    if (!aimingMood) return;
+    moodDial.classList.add("dragging");
+    aimNeedle(pointerAngle(e));
+  });
+  moodDial.addEventListener("pointerup", function(e){
+    aimingMood = false;
+    moodDial.classList.remove("dragging");
+    setMood(Math.max(-1, Math.min(1, Math.round(pointerAngle(e) / 70))));
+    saveState();
+  });
+  moodDial.addEventListener("keydown", function(e){
+    var step = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+    if (!step) return;
+    setMood(Math.max(-1, Math.min(1, MOODS.indexOf(state.inkBlend) - 1 + step)));
+    saveState();
+  });
+  var savedMood = MOODS.indexOf(state.inkBlend);
+  setMood(savedMood < 0 ? 0 : savedMood - 1);
   // ---------- Init ----------
   renderDecks();
   if (!state.pan.x && !state.pan.y) { state.pan = { x: 40, y: 40 }; }
