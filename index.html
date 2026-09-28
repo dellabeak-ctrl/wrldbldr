@@ -338,7 +338,7 @@
     </ul>
     <h2>Actions</h2>
     <h3>Moving cards</h3>
-    <p>Hold Control and click-drag, or drag with two fingers on a trackpad, to move a card.</p>
+    <p>Click and drag a card to move it along with every card tucked under it that's lower in the hierarchy (Region → Landmark → Namesake → Origin → Attribute → Advent). Right-click and drag to move just that one card.</p>
     <h3>Rotating & Removing</h3>
     <p>Hover over a card to reveal a rotate (⟳) and remove (✕) button.</p>
     <h3>Lock a card</h3>
@@ -1057,6 +1057,25 @@
     updateRegionAuras();
     refreshInk();
   }
+  // The cards a left-drag carries along: the grabbed card, every card lower in
+  // the hierarchy (Region > Landmark > Namesake > Origin > Attribute > Advent)
+  // that overlaps it, every card lower still that overlaps those, and so on.
+  // A card only ever pulls cards ranked below itself, so an Advent pulls nothing.
+  function rank(card){ return DECK_MAP[card.deckKey].layer; }
+  function dragGroup(root){
+    var group = [root], seen = {};
+    seen[root.id] = true;
+    for (var i = 0; i < group.length; i++) {
+      var c = group[i];
+      state.cards.forEach(function(o){
+        // Cards are 190px squares; overlapping (or edge-to-edge) means no gap on either axis.
+        if (!seen[o.id] && rank(o) < rank(c) && Math.abs(o.x - c.x) <= 190 && Math.abs(o.y - c.y) <= 190) {
+          seen[o.id] = true; group.push(o);
+        }
+      });
+    }
+    return group;
+  }
   function renderCard(card){
     var deck = DECK_MAP[card.deckKey];
     var el = document.createElement("div");
@@ -1077,8 +1096,8 @@
       '<button class="card-rotate" title="Rotate card">⟳</button>' +
       '<button class="card-close" title="Remove card">✕</button>';
     // Belt-and-suspenders: fully block the browser's native drag-and-drop
-    // gesture on this card (it was creating a "ghost" image on left-click
-    // that fought with our own right-click drag logic below).
+    // gesture on this card (it creates a "ghost" image on left-click that
+    // fights with our own drag logic below).
     el.addEventListener("dragstart", function(e){ e.preventDefault(); });
     // Only the artwork rotates — the buttons stay fixed to the card's
     // actual top-right corner on screen, regardless of rotation.
@@ -1115,17 +1134,22 @@
     var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
     artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".jpg";
     // Right-click on the card to suppress the browser's context menu,
-    // since right-click-drag is how cards are moved now.
+    // since right-click-drag moves a single card.
     el.addEventListener("contextmenu", function(e){ e.preventDefault(); });
     // drag (repositioning only — does not change stacking order).
-    // Requires the right mouse button — left-click no longer drags.
+    // Left-drag carries every card tucked under this one (see dragGroup);
+    // right-drag moves just this card.
     el.addEventListener("mousedown", function(e){
-      if (e.button !== 2) return;
+      if (e.button !== 0 && e.button !== 2) return;
       if (e.target.closest(".card-close") || e.target.closest(".card-rotate")) return;
       e.stopPropagation();
       e.preventDefault();
-      liftInk(card);
-      var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
+      // group[0] is always this card; each member remembers where it started.
+      var group = (e.button === 0 ? dragGroup(card) : [card]).map(function(c){
+        return { card: c, el: document.getElementById("card-" + c.id), x: c.x, y: c.y };
+      });
+      var start = { x: e.clientX, y: e.clientY };
+      var dragging = false;
       var rafId = null;
       var SNAP_SIZE = card.deckKey === "advent" ? 21 : 42;
       // Snap a card's center (not its top-left corner) to the grid.
@@ -1138,22 +1162,32 @@
       // when the card is compositing a large photo.
       function applyPosition(){
         rafId = null;
-        el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
+        group.forEach(function(m){
+          m.el.style.transform = "translate3d(" + m.card.x + "px, " + m.card.y + "px, 0)";
+        });
         updateRegionAuras();
       }
+      function moveBy(dx, dy){
+        group.forEach(function(m){ m.card.x = m.x + dx; m.card.y = m.y + dy; });
+      }
       function onMove(ev){
-        var dx = (ev.clientX - start.x) / state.scale;
-        var dy = (ev.clientY - start.y) / state.scale;
-        card.x = start.cx + dx;
-        card.y = start.cy + dy;
+        if (!dragging) {
+          // Ignore the wobble of a plain click, so it doesn't snap the cards or re-bloom their ink.
+          if (Math.abs(ev.clientX - start.x) < 3 && Math.abs(ev.clientY - start.y) < 3) return;
+          dragging = true;
+          group.forEach(function(m){ liftInk(m.card); });
+        }
+        moveBy((ev.clientX - start.x) / state.scale, (ev.clientY - start.y) / state.scale);
         if (rafId === null) rafId = requestAnimationFrame(applyPosition);
       }
       function onUp(){
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        if (!dragging) return;
         if (rafId !== null) cancelAnimationFrame(rafId);
-        card.x = snap(card.x, el.offsetWidth);
-        card.y = snap(card.y, el.offsetHeight);
+        // Snap the grabbed card, then shift the rest by the same amount so
+        // tucked cards keep their exact offsets from it.
+        moveBy(snap(card.x, el.offsetWidth) - group[0].x, snap(card.y, el.offsetHeight) - group[0].y);
         applyPosition();
         saveState();
         refreshInk();
