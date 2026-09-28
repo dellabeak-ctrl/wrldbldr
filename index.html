@@ -204,10 +204,10 @@
     background:var(--outline); transition:background-color .3s ease;
   }
   /* Outline colour and blend follow the ink mood dial. */
-  #viewport[data-mood="multiply"]  { --outline:#4a2d1b; --outline-blend:multiply;    --outline-alpha:.75; }
+  #viewport[data-mood="multiply"]  { --outline:#7a5638; --outline-blend:multiply;    --outline-alpha:.5; }
   #viewport[data-mood="soft-light"]{ --outline:#f4ede0; --outline-blend:soft-light;  --outline-alpha:.9; }
-  #viewport[data-mood="overlay"]   { --outline:#fff3d4; --outline-blend:color-dodge; --outline-alpha:.85; }
-  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 18px 4px var(--outline); }   /* bright: a lit rim */
+  #viewport[data-mood="overlay"]   { --outline:#fff3d4; --outline-blend:color-dodge; --outline-alpha:.45; }
+  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 12px 2px var(--outline); }   /* bright: a lit rim */
   #inkLayer canvas{ position:absolute; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
