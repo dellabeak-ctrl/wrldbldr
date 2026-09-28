@@ -2,11 +2,10 @@
 
 A browser-based workspace for playing **[The Story Engine: Deck of Worlds](https://thestoryengine.co/)** virtually — draw cards, arrange them on an infinite pannable/zoomable canvas, and save as many worlds as you want.
 
-This is a personal fan tool for digitizing a physical copy of the deck for remote/virtual play. It does **not** include any of the deck's card text or artwork — only your own photos of your own physical cards, which you supply yourself (see below).
 
 ## Features
 
-- **Six decks, numbered draw** — Region, Landmark, Namesake, Origin, Attribute, and Advent, matching the physical deck's counts (32/48/48/32/48/32). Drawing a card removes it from that deck until you reshuffle.
+- **Six decks, numbered draw** — Region, Landmark, Namesake, Origin, Attribute, and Advent. Drawing a card removes it from that deck until you reshuffle.
 - **Infinite canvas** — pan by dragging empty space, zoom with the scroll wheel or the +/− controls.
 - **Right-click (or two-finger trackpad) drag** to reposition a card — left-click is reserved for canvas panning. Cards snap to a light grid when you release them.
 - **Fixed visual hierarchy** — Region cards always render on top, then Landmark, Namesake, Origin, Attribute, with Advent on the bottom, regardless of draw order.
@@ -19,25 +18,12 @@ This is a personal fan tool for digitizing a physical copy of the deck for remot
 
 1. Host `world-builder.html` anywhere static files can be served (this repo is set up for GitHub Pages).
 2. Add your own card photos in six folders **next to** `world-builder.html` (no wrapping "cards" folder):
-
-   ```
-   regions/
-   landmarks/
-   namesakes/
-   origins/
-   attributes/
-   advents/
-   ```
-
 3. Name each photo `<singular-category>-<number>.jpg` (or `.png`), zero-padding numbers under 10:
 
    ```
    regions/region-01.jpg ... region-32.jpg
    landmarks/landmark-01.jpg ... landmark-48.jpg
-   namesakes/namesake-01.jpg ... namesake-48.jpg
-   origins/origin-01.jpg ... origin-32.jpg
-   attributes/attribute-01.jpg ... attribute-48.jpg
-   advents/advent-01.jpg ... advent-32.jpg
+   etc.
    ```
 
    A card with no matching photo just displays its number instead — nothing breaks.
