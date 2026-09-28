@@ -812,10 +812,9 @@
     });
     var growthPerCard = 3;   // % the middle color is pushed outward per nearby card
     var maxGrowth = 22;      // cap on that growth
-    // Each region gets its own radial gradient, sized with "farthest-corner"
-    // so it always reaches the far edge of the workspace regardless of
-    // where the card sits or how zoomed/panned the view is. Its 3 colors
-    // fade smoothly into one another and out to transparent at the edge.
+    // Each region gets its own radial gradient with a fixed radius on the
+    // board (scaled with zoom). Its 3 colors fade smoothly into one
+    // another and out to transparent at the edge.
     var layers = regionCards.map(function(card){
       var cx = state.pan.x + (card.x + 95) * state.scale;
       var cy = state.pan.y + (card.y + 95) * state.scale;
@@ -826,7 +825,7 @@
         toRgba(colors[1], 0.5) + " " + (35 + growth) + "%",
         toRgba(colors[2], 0) + " 100%"
       ].join(", ");
-      return "radial-gradient(circle farthest-corner at " + cx + "px " + cy + "px, " + stops + ")";
+      return "radial-gradient(circle " + (900 * state.scale) + "px at " + cx + "px " + cy + "px, " + stops + ")";
     });
     regionGlow.style.backgroundImage = layers.join(", ");
     if (!hasRegionGlow) { regionGlow.style.opacity = "1"; hasRegionGlow = true; }
