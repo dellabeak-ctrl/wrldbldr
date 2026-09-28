@@ -18,8 +18,8 @@
     --card-face-text: #2a2620;
     --c-region: #2d6a4f;
     --c-landmark: #1d4ed8;
-    --c-namesake: #7c3aed;
-    --c-origin: #92400e;
+    --c-namesake: #92400e;
+    --c-origin: #7c3aed;
     --c-attribute: #0f766e;
     --c-advent: #b91c1c;
   }
@@ -934,7 +934,7 @@
       e.preventDefault();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       var rafId = null;
-      var SNAP_SIZE = 42;
+      var SNAP_SIZE = card.deckKey === "advent" ? 21 : 42;
       // Snap a card's center (not its top-left corner) to the grid.
       function snap(pos, size){
         return Math.round((pos + size / 2) / SNAP_SIZE) * SNAP_SIZE - size / 2;
