@@ -156,6 +156,9 @@
     mix-blend-mode: multiply; filter: saturate(1.5);
     opacity:0; transition:opacity 1.1s ease;
     background-blend-mode: screen;
+    /* Paper absorbs ink unevenly: a tiling cloud-noise mask (panned/zoomed
+       with the board in applyTransform) breaks the auras into rough shapes. */
+    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 -.4'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   }
    #dotGrid{
     position:absolute; inset:0; z-index:1; pointer-events:none;
@@ -686,8 +689,8 @@
   function applyTransform(){
     canvasLayer.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.scale + ")";
     zoompct.textContent = Math.round(state.scale * 100) + "%";
-    mapTexture.style.backgroundPosition = state.pan.x + "px " + state.pan.y + "px";
-    mapTexture.style.backgroundSize = (1024 * state.scale) + "px";
+    mapTexture.style.backgroundPosition = regionGlow.style.maskPosition = state.pan.x + "px " + state.pan.y + "px";
+    mapTexture.style.backgroundSize = regionGlow.style.maskSize = (1024 * state.scale) + "px";
     updateRegionAuras();
   }
   function screenToCanvas(sx, sy){
@@ -816,7 +819,7 @@
     var maxGrowth = 22;      // cap on that growth
     // Each region gets its own radial gradient with a fixed radius on the
     // board (scaled with zoom). Its 3 colors fade smoothly into one
-    // another and out to transparent at the edge.
+    // another, leaving only a faint tint that carries on to the edges.
     var layers = regionCards.map(function(card){
       var cx = state.pan.x + (card.x + 95) * state.scale;
       var cy = state.pan.y + (card.y + 95) * state.scale;
@@ -825,7 +828,7 @@
       var stops = [
         toRgba(colors[0], 0.6) + " 0%",
         toRgba(colors[1], 0.5) + " " + (35 + growth) + "%",
-        toRgba(colors[2], 0) + " 100%"
+        toRgba(colors[2], 0.05) + " 100%"
       ].join(", ");
       return "radial-gradient(circle " + (900 * state.scale) + "px at " + cx + "px " + cy + "px, " + stops + ")";
     });
