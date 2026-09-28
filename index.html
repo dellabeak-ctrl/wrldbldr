@@ -156,9 +156,14 @@
     mix-blend-mode: multiply; filter: saturate(1.5);
     opacity:0; transition:opacity 1.1s ease;
     background-blend-mode: screen;
+  }
+  #regionWash{
+    position:absolute; inset:0; opacity:.8;
+    background-blend-mode: screen;
     /* Paper absorbs ink unevenly: a tiling cloud-noise mask (panned/zoomed
-       with the board in applyTransform) breaks the auras into rough shapes. */
-    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 -.4'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+       with the board in applyTransform) breaks the broad wash into soft,
+       rough shapes around the smooth gradient cores. */
+    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2 0 0 0 -.35'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
   }
    #dotGrid{
     position:absolute; inset:0; z-index:1; pointer-events:none;
@@ -332,7 +337,7 @@
 </div>
 <div id="viewport">
   <div id="mapTexture"></div>
-  <div id="regionGlow"></div>
+  <div id="regionGlow"><div id="regionWash"></div></div>
   <div id="dotGrid"></div>
   <div id="canvas-layer"></div>
 </div>
@@ -403,6 +408,7 @@
   var viewport = document.getElementById("viewport");
   var canvasLayer = document.getElementById("canvas-layer");
   var regionGlow = document.getElementById("regionGlow");
+  var regionWash = document.getElementById("regionWash");
   var mapTexture = document.getElementById("mapTexture");
   var deckListEl = document.getElementById("deck-list");
   var emptyState = document.getElementById("empty-state");
@@ -689,8 +695,8 @@
   function applyTransform(){
     canvasLayer.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.scale + ")";
     zoompct.textContent = Math.round(state.scale * 100) + "%";
-    mapTexture.style.backgroundPosition = regionGlow.style.maskPosition = state.pan.x + "px " + state.pan.y + "px";
-    mapTexture.style.backgroundSize = regionGlow.style.maskSize = (1024 * state.scale) + "px";
+    mapTexture.style.backgroundPosition = regionWash.style.maskPosition = state.pan.x + "px " + state.pan.y + "px";
+    mapTexture.style.backgroundSize = regionWash.style.maskSize = (1024 * state.scale) + "px";
     updateRegionAuras();
   }
   function screenToCanvas(sx, sy){
@@ -817,9 +823,10 @@
     });
     var growthPerCard = 3;   // % the middle color is pushed outward per nearby card
     var maxGrowth = 22;      // cap on that growth
-    // Each region gets its own radial gradient with a fixed radius on the
-    // board (scaled with zoom). Its 3 colors fade smoothly into one
-    // another, leaving only a faint tint that carries on to the edges.
+    // Each region gets two radial gradients of fixed size on the board
+    // (scaled with zoom): a tight smooth core, and a broad wash that the
+    // noise mask breaks up. Its 3 colors fade smoothly into one another,
+    // leaving only a faint tint that carries on to the edges.
     var layers = regionCards.map(function(card){
       var cx = state.pan.x + (card.x + 95) * state.scale;
       var cy = state.pan.y + (card.y + 95) * state.scale;
@@ -830,9 +837,13 @@
         toRgba(colors[1], 0.5) + " " + (35 + growth) + "%",
         toRgba(colors[2], 0.05) + " 100%"
       ].join(", ");
-      return "radial-gradient(circle " + (900 * state.scale) + "px at " + cx + "px " + cy + "px, " + stops + ")";
+      return cx + "px " + cy + "px, " + stops;
     });
-    regionGlow.style.backgroundImage = layers.join(", ");
+    function auras(radius){
+      return layers.map(function(l){ return "radial-gradient(circle " + (radius * state.scale) + "px at " + l + ")"; }).join(", ");
+    }
+    regionGlow.style.backgroundImage = auras(600);
+    regionWash.style.backgroundImage = auras(2400);
     if (!hasRegionGlow) { regionGlow.style.opacity = "1"; hasRegionGlow = true; }
   }
   // ---------- Cards ----------
