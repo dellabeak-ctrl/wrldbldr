@@ -170,7 +170,7 @@
   }
   .card:active{ cursor:grabbing; }
   .card-art-wrap{
-    position:relative; width:100%; height:100%; overflow:hidden;
+    position:relative; width:100%; height:100%; overflow:hidden; border-radius:5.5px;
     will-change:transform; backface-visibility:hidden;
   }
   .card-art{
@@ -934,7 +934,7 @@
       e.preventDefault();
       var start = { x: e.clientX, y: e.clientY, cx: card.x, cy: card.y };
       var rafId = null;
-      var SNAP_SIZE = 45;
+      var SNAP_SIZE = 42;
       // Snap a card's center (not its top-left corner) to the grid.
       function snap(pos, size){
         return Math.round((pos + size / 2) / SNAP_SIZE) * SNAP_SIZE - size / 2;
