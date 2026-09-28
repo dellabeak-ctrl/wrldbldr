@@ -148,12 +148,12 @@
   }
   #viewport.panning{ cursor:grabbing; }
   #viewport::after{ content:""; position:absolute; inset:0; pointer-events:none;
-    z-index:1; box-shadow: inset 0 0 180px 40px rgba(60,35,10,.45); }
+    z-index:1; box-shadow: inset 0 0 220px 20px rgba(60,35,10,.3); }
   #mapTexture{ position:absolute; inset:0; z-index:0; pointer-events:none;
-    background:url('textures/parchment.jpg') repeat; filter: saturate(.5) brightness(1.4); }
+    background:url('textures/parchment.jpg') repeat; filter: saturate(.25) brightness(2); }
   #regionGlow{
     position:absolute; inset:0; z-index:1; pointer-events:none;
-    mix-blend-mode: multiply; filter: saturate(3);
+    mix-blend-mode: multiply; filter: saturate(1.5);
     opacity:0; transition:opacity 1.1s ease;
     /* "screen" only ever lightens as layers stack, so overlapping region
        auras stay distinct and vivid instead of converging into muddy
