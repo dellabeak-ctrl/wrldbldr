@@ -171,7 +171,7 @@
   }
   #inkLayer{
     position:absolute; top:0; left:0; transform-origin:0 0; z-index:1;
-    pointer-events:none; mix-blend-mode:multiply;
+    pointer-events:none;
   }
   #inkLayer canvas{ position:absolute; }
   #canvas-layer{
@@ -866,17 +866,22 @@
   var edgeCache = {};   // deckKey+number -> 32 border colors ("r,g,b"), clockwise from the right edge
   var ink = {};         // cluster key -> its ink canvas (null if it has no colour source)
   var INK = {           // tendril tuning (live-editable from the dev board)
-    regionsMin: 9, regionsMax: 15,   // spawn regions per card, evenly spaced round its edge
-    perRegion: 2,                    // tendrils per region
-    jitter: .5,                      // drift of each region from even spacing (fraction of the gap)
-    spread: .3,                      // random heading offset from straight out (radians)
-    width: 18, widthJitter: 8, widthDecay: .985, minWidth: .5,
-    speed: 3.5, speedDecay: .99,
-    curl: .02, curlDrift: .03, curlGrowth: .97, curlMax: .1,   // growth < 1 winds like a road, > 1 spirals
-    branch: .006, branchAngle: .6, branchWidth: .65, maxTips: 300,
-    core: .3, bleed: .05, bleedWidth: 2,
-    steps: 3, margin: 420,
-    dissolve: true, blur: 5, fade: .9, dissolveTime: 2.5
+    regionsMin: 7, regionsMax: 12,   // spawn regions per card, evenly spaced round its edge
+    perRegion: 1,                    // tendrils per region
+    jitter: .55,                     // drift of each region from even spacing (fraction of the gap)
+    spread: 1.55,                    // max heading offset from straight out (radians); most stay near 0
+    width: 80, widthJitter: 29.5, widthDecay: .985, minWidth: 16,
+    speed: 8, speedDecay: .99,
+    curl: .075, curlDrift: .068, curlGrowth: .914, curlMax: .15,   // growth < 1 winds like a road, > 1 spirals
+    branch: .02, branchAngle: 1.15, branchWidth: 1, maxTips: 300,
+    branchBias: 0,                   // > 0 branches more near a branch's start, < 0 more near its tip
+    core: .19, bleed: .025, bleedWidth: 1.3,
+    saturate: 1.4, brighten: .7,     // colour boost: saturation multiplier, 0-1 lift toward full brightness
+    blend: "normal",                 // how ink sits on the paper (normal = true glow colour, screen whitens, multiply stains)
+    steps: 1, margin: 570,
+    blur: 80,                        // soft from the first stroke, not just once grown
+    dissolveBlur: 0, fade: 1, dissolveTime: 5.2,   // extra blur / final opacity eased in once grown
+    debug: false                     // flat red strokes, to check where tendrils actually go
   };
   function sampleEdge(img){
     var d = thumbnail(img), ring = [];
@@ -884,10 +889,16 @@
     for (var k = 0; k < 32; k++) {
       var a = k / 32 * 2 * Math.PI, m = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
       var i = (Math.round(11.5 + 11.5 * Math.sin(a) / m) * 24 + Math.round(11.5 + 11.5 * Math.cos(a) / m)) * 4;
-      var lift = Math.max(0, 150 - Math.max(d[i], d[i+1], d[i+2]));   // keep ink off the very dark end
-      ring.push((d[i] + lift) + "," + (d[i+1] + lift) + "," + (d[i+2] + lift));
+      ring.push(d[i] + "," + d[i+1] + "," + d[i+2]);
     }
     return ring;
+  }
+  // A brighter, more saturated version of an "r,g,b" border colour, so ink glows instead of muddying.
+  function glowColor(rgb){
+    var c = rgb.split(",").map(Number), avg = (c[0] + c[1] + c[2]) / 3;
+    c = c.map(function(v){ return avg + (v - avg) * INK.saturate; });
+    var k = 1 + (255 / Math.max(1, Math.max.apply(null, c)) - 1) * INK.brighten;
+    return c.map(function(v){ return Math.round(Math.min(255, Math.max(0, v * k))); }).join();
   }
   function dropInk(k){
     var cv = ink[k];
@@ -920,7 +931,9 @@
     var cv = document.createElement("canvas"), ctx = cv.getContext("2d");
     cv.ids = g.map(function(c){ return c.id; });
     cv.width = w; cv.height = h;
-    cv.style.cssText = "left:" + x0 + "px;top:" + y0 + "px;width:" + w + "px;height:" + h + "px;transition:opacity .4s, filter " + INK.dissolveTime + "s";
+    cv.style.cssText = "left:" + x0 + "px;top:" + y0 + "px;width:" + w + "px;height:" + h + "px;" +
+      "filter:blur(" + INK.blur + "px);transition:opacity .4s, filter " + INK.dissolveTime + "s";
+    inkLayer.style.mixBlendMode = INK.blend;
     ctx.translate(-x0, -y0);
     ctx.lineCap = "round";
     inkLayer.appendChild(cv);
@@ -937,11 +950,14 @@
         // Colour: the nearest Region/Landmark's border, on the side facing this point.
         var s = src.reduce(function(b, o){ return Math.hypot(x - o.x, y - o.y) < Math.hypot(x - b.x, y - b.y) ? o : b; });
         var k = Math.round((Math.atan2(y - s.y - 95, x - s.x - 95) - (s.rotation || 0) * Math.PI / 180) / (2 * Math.PI) * 32);
-        var col = edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32];
-        for (var j = 0; j < INK.perRegion; j++) tips.push({
-          x: x, y: y, a: a + (Math.random() - .5) * 2 * INK.spread, c: (Math.random() - .5) * 2 * INK.curl,
-          w: INK.width + (Math.random() - .5) * INK.widthJitter, v: INK.speed, col: col
-        });
+        var col = INK.debug ? "255,0,0" : glowColor(edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32]);
+        for (var j = 0; j < INK.perRegion; j++) {
+          // Heading: mostly straight out, rarely out to the full spread, so tendrils
+          // leave every side of a cluster instead of running along it.
+          var tw = INK.width + (Math.random() - .5) * INK.widthJitter;
+          tips.push({ x: x, y: y, a: a + (Math.random() + Math.random() - 1) * INK.spread, c: (Math.random() - .5) * 2 * INK.curl,
+                      w: tw, w0: tw, v: INK.speed, col: col });
+        }
       }
     });
     (function grow(){
@@ -955,15 +971,16 @@
           t.x = x; t.y = y; t.a += t.c;
           t.c = Math.max(-INK.curlMax, Math.min(INK.curlMax, t.c * INK.curlGrowth + (Math.random() - .5) * INK.curlDrift));
           t.v *= INK.speedDecay; t.w *= INK.widthDecay;
-          if (next.length < INK.maxTips && Math.random() < INK.branch) next.push({
-            x: x, y: y, a: t.a + (Math.random() < .5 ? -1 : 1) * INK.branchAngle, c: -t.c, w: t.w * INK.branchWidth, v: t.v, col: t.col
+          if (next.length < INK.maxTips && Math.random() < INK.branch * Math.pow(t.w / t.w0, INK.branchBias)) next.push({
+            x: x, y: y, a: t.a + (Math.random() < .5 ? -1 : 1) * INK.branchAngle, c: -t.c,
+            w: t.w * INK.branchWidth, w0: t.w * INK.branchWidth, v: t.v, col: t.col
           });
           if (t.w > INK.minWidth && t.v > .1) next.push(t);
         });
         tips = next;
       }
       if (tips.length) requestAnimationFrame(grow);
-      else if (INK.dissolve) cv.style.filter = "blur(" + INK.blur + "px) opacity(" + INK.fade + ")";
+      else cv.style.filter = "blur(" + (INK.blur + INK.dissolveBlur) + "px) opacity(" + INK.fade + ")";
     })();
     return cv;
   }
@@ -1171,15 +1188,19 @@
   // to paste back into INK once they're right.
   (function(){
     var RANGES = {
-      regionsMin:[1,30,1], regionsMax:[1,30,1], perRegion:[1,6,1], jitter:[0,1,.05], spread:[0,1.6,.05],
-      width:[1,60,.5], widthJitter:[0,40,.5], widthDecay:[.95,1,.001], minWidth:[.1,5,.1],
-      speed:[.5,12,.1], speedDecay:[.95,1,.001],
+      regionsMin:[1,30,1], regionsMax:[1,30,1], perRegion:[1,6,1], jitter:[0,1,.05], spread:[0,3,.05],
+      width:[1,200,1], widthJitter:[0,100,.5], widthDecay:[.95,1,.001], minWidth:[.1,60,.5],
+      speed:[.5,20,.1], speedDecay:[.95,1,.001],
       curl:[0,.2,.005], curlDrift:[0,.15,.002], curlGrowth:[.85,1.05,.001], curlMax:[0,.4,.005],
-      branch:[0,.1,.001], branchAngle:[0,1.6,.05], branchWidth:[.1,1,.05], maxTips:[50,3000,50],
-      core:[0,1,.01], bleed:[0,.3,.005], bleedWidth:[1,8,.1],
-      steps:[1,12,1], margin:[100,1000,10], blur:[0,30,.5], fade:[0,1,.05], dissolveTime:[0,10,.1]
+      branch:[0,.1,.001], branchAngle:[0,1.6,.05], branchWidth:[.1,1,.05], maxTips:[50,3000,50], branchBias:[-4,4,.1],
+      core:[0,1,.01], bleed:[0,.3,.005], bleedWidth:[1,8,.1], saturate:[0,3,.05], brighten:[0,1,.05],
+      steps:[1,12,1], margin:[100,1500,10], blur:[0,150,1], dissolveBlur:[0,100,1], fade:[0,1,.05], dissolveTime:[0,10,.1]
     };
-    try { Object.assign(INK, JSON.parse(localStorage.getItem("ink-dev") || "{}")); } catch (e) {}
+    var BLENDS = ["normal", "screen", "multiply", "soft-light", "overlay", "lighten", "color-dodge", "plus-lighter"];
+    try {
+      var saved = JSON.parse(localStorage.getItem("ink-dev") || "{}");
+      Object.keys(saved).forEach(function(k){ if (k in INK) INK[k] = saved[k]; });
+    } catch (e) {}
     var panel = document.createElement("div"), timer = null;
     panel.style.cssText = "position:fixed;right:8px;bottom:8px;z-index:9999;max-height:85vh;overflow:auto;padding:8px;" +
       "background:rgba(15,17,25,.92);color:#ddd;font:11px monospace;border-radius:6px";
@@ -1202,6 +1223,12 @@
         box.type = "checkbox"; box.checked = INK[k];
         box.onchange = function(){ INK[k] = box.checked; rebloom(); };
         return row(k, box);
+      }
+      if (typeof INK[k] === "string") {
+        var sel = document.createElement("select");
+        BLENDS.forEach(function(b){ sel.add(new Option(b, b, false, b === INK[k])); });
+        sel.onchange = function(){ INK[k] = sel.value; rebloom(); };
+        return row(k, sel);
       }
       var range = document.createElement("input"), num = document.createElement("input");
       range.type = "range"; num.type = "number"; num.style.width = "64px";
