@@ -173,7 +173,7 @@
     position:absolute; top:0; left:0; transform-origin:0 0; z-index:1;
     pointer-events:none; mix-blend-mode:multiply;
   }
-  #inkLayer canvas{ position:absolute; transition:opacity .4s, filter 2.5s; }
+  #inkLayer canvas{ position:absolute; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
     transform-origin: 0 0; z-index:2;
@@ -865,6 +865,19 @@
   // keyed by its cards' ids and positions, so it only re-blooms on change.
   var edgeCache = {};   // deckKey+number -> 32 border colors ("r,g,b"), clockwise from the right edge
   var ink = {};         // cluster key -> its ink canvas (null if it has no colour source)
+  var INK = {           // tendril tuning (live-editable from the dev board)
+    regionsMin: 9, regionsMax: 15,   // spawn regions per card, evenly spaced round its edge
+    perRegion: 2,                    // tendrils per region
+    jitter: .5,                      // drift of each region from even spacing (fraction of the gap)
+    spread: .3,                      // random heading offset from straight out (radians)
+    width: 18, widthJitter: 8, widthDecay: .985, minWidth: .5,
+    speed: 3.5, speedDecay: .99,
+    curl: .02, curlDrift: .03, curlGrowth: .97, curlMax: .1,   // growth < 1 winds like a road, > 1 spirals
+    branch: .006, branchAngle: .6, branchWidth: .65, maxTips: 300,
+    core: .3, bleed: .05, bleedWidth: 2,
+    steps: 3, margin: 420,
+    dissolve: true, blur: 5, fade: .9, dissolveTime: 2.5
+  };
   function sampleEdge(img){
     var d = thumbnail(img), ring = [];
     if (!d) return null;
@@ -902,45 +915,55 @@
     var src = g.filter(function(c){ return edgeCache[c.deckKey + c.number]; });
     if (!src.length) return null;
     var xs = g.map(function(c){ return c.x; }), ys = g.map(function(c){ return c.y; });
-    var x0 = Math.min.apply(null, xs) - 360, y0 = Math.min.apply(null, ys) - 360;
-    var w = Math.max.apply(null, xs) + 550 - x0, h = Math.max.apply(null, ys) + 550 - y0;
+    var x0 = Math.min.apply(null, xs) - INK.margin, y0 = Math.min.apply(null, ys) - INK.margin;
+    var w = Math.max.apply(null, xs) + 190 + INK.margin - x0, h = Math.max.apply(null, ys) + 190 + INK.margin - y0;
     var cv = document.createElement("canvas"), ctx = cv.getContext("2d");
     cv.ids = g.map(function(c){ return c.id; });
     cv.width = w; cv.height = h;
-    cv.style.cssText = "left:" + x0 + "px;top:" + y0 + "px;width:" + w + "px;height:" + h + "px";
+    cv.style.cssText = "left:" + x0 + "px;top:" + y0 + "px;width:" + w + "px;height:" + h + "px;transition:opacity .4s, filter " + INK.dissolveTime + "s";
     ctx.translate(-x0, -y0);
     ctx.lineCap = "round";
     inkLayer.appendChild(cv);
     var tips = [];
     g.forEach(function(c){
-      for (var n = 0; n < 14; n++) {
-        // Random point on one of the card's 4 edges, heading outward.
-        var a = (Math.floor(Math.random() * 4) - 1) * Math.PI / 2, t = Math.random() * 190 - 95;
+      var n = INK.regionsMin + Math.floor(Math.random() * (INK.regionsMax - INK.regionsMin + 1)), start = Math.random() * 760;
+      for (var i = 0; i < n; i++) {
+        // Evenly spaced spawn regions round the card's 760px perimeter (clockwise from
+        // its top-left, from a random start), each nudged a little by jitter.
+        var d = (start + 760 + (i + (Math.random() - .5) * INK.jitter) * 760 / n) % 760, t = d % 190 - 95;
+        var a = (Math.floor(d / 190) - 1) * Math.PI / 2;   // outward normal of that side
         var x = c.x + 95 + 95 * Math.cos(a) - t * Math.sin(a), y = c.y + 95 + 95 * Math.sin(a) + t * Math.cos(a);
         if (g.some(function(o){ return o !== c && Math.abs(x - o.x - 95) < 120 && Math.abs(y - o.y - 95) < 120; })) continue;
         // Colour: the nearest Region/Landmark's border, on the side facing this point.
         var s = src.reduce(function(b, o){ return Math.hypot(x - o.x, y - o.y) < Math.hypot(x - b.x, y - b.y) ? o : b; });
         var k = Math.round((Math.atan2(y - s.y - 95, x - s.x - 95) - (s.rotation || 0) * Math.PI / 180) / (2 * Math.PI) * 32);
-        tips.push({ x: x, y: y, a: a + Math.random() - .5, c: (Math.random() - .5) * .03, w: 8 + Math.random() * 6, v: 3.5, col: edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32] });
+        var col = edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32];
+        for (var j = 0; j < INK.perRegion; j++) tips.push({
+          x: x, y: y, a: a + (Math.random() - .5) * 2 * INK.spread, c: (Math.random() - .5) * 2 * INK.curl,
+          w: INK.width + (Math.random() - .5) * INK.widthJitter, v: INK.speed, col: col
+        });
       }
     });
     (function grow(){
-      for (var r = 0; r < 3; r++) {
+      for (var r = 0; r < INK.steps; r++) {
         var next = [];
         tips.forEach(function(t){
           var x = t.x + Math.cos(t.a) * t.v, y = t.y + Math.sin(t.a) * t.v;
           ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(x, y);
-          ctx.strokeStyle = "rgba(" + t.col + ",.04)"; ctx.lineWidth = t.w * 2.5; ctx.stroke();   // bleed
-          ctx.strokeStyle = "rgba(" + t.col + ",.35)"; ctx.lineWidth = t.w; ctx.stroke();        // core
+          ctx.strokeStyle = "rgba(" + t.col + "," + INK.bleed + ")"; ctx.lineWidth = t.w * INK.bleedWidth; ctx.stroke();
+          ctx.strokeStyle = "rgba(" + t.col + "," + INK.core + ")"; ctx.lineWidth = t.w; ctx.stroke();
           t.x = x; t.y = y; t.a += t.c;
-          t.c = Math.max(-.08, Math.min(.08, t.c * 1.005 + (Math.random() - .5) * .01)); // wisp, curling tighter as it slows
-          t.v *= .99; t.w *= .985;   // thins faster than it slows
-          if (Math.random() < .02) next.push({ x: x, y: y, a: t.a + (Math.random() < .5 ? -.5 : .5), c: -t.c, w: t.w * .6, v: t.v, col: t.col });
-          if (t.w > .5) next.push(t);
+          t.c = Math.max(-INK.curlMax, Math.min(INK.curlMax, t.c * INK.curlGrowth + (Math.random() - .5) * INK.curlDrift));
+          t.v *= INK.speedDecay; t.w *= INK.widthDecay;
+          if (next.length < INK.maxTips && Math.random() < INK.branch) next.push({
+            x: x, y: y, a: t.a + (Math.random() < .5 ? -1 : 1) * INK.branchAngle, c: -t.c, w: t.w * INK.branchWidth, v: t.v, col: t.col
+          });
+          if (t.w > INK.minWidth && t.v > .1) next.push(t);
         });
         tips = next;
       }
-      if (tips.length) requestAnimationFrame(grow); else cv.style.filter = "blur(5px) opacity(.9)";
+      if (tips.length) requestAnimationFrame(grow);
+      else if (INK.dissolve) cv.style.filter = "blur(" + INK.blur + "px) opacity(" + INK.fade + ")";
     })();
     return cv;
   }
@@ -1142,6 +1165,69 @@
       }
     });
   }
+  // ---------- Dev board (TEMPORARY: delete this whole block to remove it) ----------
+  // Live sliders for INK. Press ` to show/hide. Values persist in localStorage
+  // and the board re-blooms after each change; "Copy values" gives the JSON
+  // to paste back into INK once they're right.
+  (function(){
+    var RANGES = {
+      regionsMin:[1,30,1], regionsMax:[1,30,1], perRegion:[1,6,1], jitter:[0,1,.05], spread:[0,1.6,.05],
+      width:[1,60,.5], widthJitter:[0,40,.5], widthDecay:[.95,1,.001], minWidth:[.1,5,.1],
+      speed:[.5,12,.1], speedDecay:[.95,1,.001],
+      curl:[0,.2,.005], curlDrift:[0,.15,.002], curlGrowth:[.85,1.05,.001], curlMax:[0,.4,.005],
+      branch:[0,.1,.001], branchAngle:[0,1.6,.05], branchWidth:[.1,1,.05], maxTips:[50,3000,50],
+      core:[0,1,.01], bleed:[0,.3,.005], bleedWidth:[1,8,.1],
+      steps:[1,12,1], margin:[100,1000,10], blur:[0,30,.5], fade:[0,1,.05], dissolveTime:[0,10,.1]
+    };
+    try { Object.assign(INK, JSON.parse(localStorage.getItem("ink-dev") || "{}")); } catch (e) {}
+    var panel = document.createElement("div"), timer = null;
+    panel.style.cssText = "position:fixed;right:8px;bottom:8px;z-index:9999;max-height:85vh;overflow:auto;padding:8px;" +
+      "background:rgba(15,17,25,.92);color:#ddd;font:11px monospace;border-radius:6px";
+    panel.innerHTML = "<b>INK DEV</b> (` to hide)<br>";
+    function rebloom(){
+      try { localStorage.setItem("ink-dev", JSON.stringify(INK)); } catch (e) {}
+      Object.keys(ink).forEach(dropInk);
+      refreshInk();
+    }
+    function row(label){
+      var el = document.createElement("label");
+      el.style.cssText = "display:flex;gap:6px;align-items:center;justify-content:space-between";
+      el.append(label);
+      [].slice.call(arguments, 1).forEach(function(i){ el.append(i); });
+      panel.append(el);
+    }
+    Object.keys(INK).forEach(function(k){
+      if (typeof INK[k] === "boolean") {
+        var box = document.createElement("input");
+        box.type = "checkbox"; box.checked = INK[k];
+        box.onchange = function(){ INK[k] = box.checked; rebloom(); };
+        return row(k, box);
+      }
+      var range = document.createElement("input"), num = document.createElement("input");
+      range.type = "range"; num.type = "number"; num.style.width = "64px";
+      range.min = num.min = RANGES[k][0]; range.max = num.max = RANGES[k][1]; range.step = num.step = RANGES[k][2];
+      range.value = num.value = INK[k];
+      function set(v){ range.value = num.value = INK[k] = +v; clearTimeout(timer); timer = setTimeout(rebloom, 250); }
+      range.oninput = function(){ set(range.value); };
+      num.onchange = function(){ set(num.value); };
+      row(k, range, num);
+    });
+    var glow = document.createElement("input");
+    glow.type = "checkbox"; glow.checked = true;
+    glow.onchange = function(){ regionGlow.style.display = glow.checked ? "" : "none"; };
+    row("show glow", glow);
+    [["Re-bloom", rebloom],
+     ["Copy values", function(){ prompt("INK values:", JSON.stringify(INK)); }],
+     ["Reset", function(){ localStorage.removeItem("ink-dev"); location.reload(); }]].forEach(function(b){
+      var btn = document.createElement("button");
+      btn.textContent = b[0]; btn.onclick = b[1]; btn.style.margin = "6px 4px 0 0";
+      panel.append(btn);
+    });
+    document.body.append(panel);
+    window.addEventListener("keydown", function(e){
+      if (e.key === "`") panel.style.display = panel.style.display === "none" ? "" : "none";
+    });
+  })();
   // ---------- Init ----------
   renderDecks();
   if (!state.pan.x && !state.pan.y) { state.pan = { x: 40, y: 40 }; }
