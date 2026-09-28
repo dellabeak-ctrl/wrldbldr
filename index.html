@@ -902,8 +902,8 @@
     var src = g.filter(function(c){ return edgeCache[c.deckKey + c.number]; });
     if (!src.length) return null;
     var xs = g.map(function(c){ return c.x; }), ys = g.map(function(c){ return c.y; });
-    var x0 = Math.min.apply(null, xs) - 300, y0 = Math.min.apply(null, ys) - 300;
-    var w = Math.max.apply(null, xs) + 490 - x0, h = Math.max.apply(null, ys) + 490 - y0;
+    var x0 = Math.min.apply(null, xs) - 360, y0 = Math.min.apply(null, ys) - 360;
+    var w = Math.max.apply(null, xs) + 550 - x0, h = Math.max.apply(null, ys) + 550 - y0;
     var cv = document.createElement("canvas"), ctx = cv.getContext("2d");
     cv.ids = g.map(function(c){ return c.id; });
     cv.width = w; cv.height = h;
@@ -913,7 +913,7 @@
     inkLayer.appendChild(cv);
     var tips = [];
     g.forEach(function(c){
-      for (var n = 0; n < 8; n++) {
+      for (var n = 0; n < 14; n++) {
         // Random point on one of the card's 4 edges, heading outward.
         var a = (Math.floor(Math.random() * 4) - 1) * Math.PI / 2, t = Math.random() * 190 - 95;
         var x = c.x + 95 + 95 * Math.cos(a) - t * Math.sin(a), y = c.y + 95 + 95 * Math.sin(a) + t * Math.cos(a);
@@ -921,26 +921,26 @@
         // Colour: the nearest Region/Landmark's border, on the side facing this point.
         var s = src.reduce(function(b, o){ return Math.hypot(x - o.x, y - o.y) < Math.hypot(x - b.x, y - b.y) ? o : b; });
         var k = Math.round((Math.atan2(y - s.y - 95, x - s.x - 95) - (s.rotation || 0) * Math.PI / 180) / (2 * Math.PI) * 32);
-        tips.push({ x: x, y: y, a: a + Math.random() - .5, c: (Math.random() - .5) * .06, w: 2 + Math.random() * 2, v: 3, col: edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32] });
+        tips.push({ x: x, y: y, a: a + Math.random() - .5, c: (Math.random() - .5) * .03, w: 8 + Math.random() * 6, v: 3.5, col: edgeCache[s.deckKey + s.number][(k % 32 + 32) % 32] });
       }
     });
     (function grow(){
-      for (var r = 0; r < 2; r++) {
+      for (var r = 0; r < 3; r++) {
         var next = [];
         tips.forEach(function(t){
           var x = t.x + Math.cos(t.a) * t.v, y = t.y + Math.sin(t.a) * t.v;
           ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(x, y);
-          ctx.strokeStyle = "rgba(" + t.col + ",.03)"; ctx.lineWidth = t.w * 5; ctx.stroke();   // bleed
-          ctx.strokeStyle = "rgba(" + t.col + ",.5)"; ctx.lineWidth = t.w; ctx.stroke();        // core
+          ctx.strokeStyle = "rgba(" + t.col + ",.04)"; ctx.lineWidth = t.w * 2.5; ctx.stroke();   // bleed
+          ctx.strokeStyle = "rgba(" + t.col + ",.35)"; ctx.lineWidth = t.w; ctx.stroke();        // core
           t.x = x; t.y = y; t.a += t.c;
-          t.c = Math.max(-.15, Math.min(.15, t.c * 1.01 + (Math.random() - .5) * .02)); // wisp, curling tighter as it slows
-          t.v *= .99; t.w *= .99;
-          if (Math.random() < .006 * t.w) next.push({ x: x, y: y, a: t.a + (Math.random() < .5 ? -.5 : .5), c: -t.c, w: t.w * .7, v: t.v, col: t.col });
-          if (t.w > .4) next.push(t);
+          t.c = Math.max(-.08, Math.min(.08, t.c * 1.005 + (Math.random() - .5) * .01)); // wisp, curling tighter as it slows
+          t.v *= .99; t.w *= .985;   // thins faster than it slows
+          if (Math.random() < .02) next.push({ x: x, y: y, a: t.a + (Math.random() < .5 ? -.5 : .5), c: -t.c, w: t.w * .6, v: t.v, col: t.col });
+          if (t.w > .5) next.push(t);
         });
         tips = next;
       }
-      if (tips.length) requestAnimationFrame(grow); else cv.style.filter = "blur(6px) opacity(.7)";
+      if (tips.length) requestAnimationFrame(grow); else cv.style.filter = "blur(5px) opacity(.9)";
     })();
     return cv;
   }
