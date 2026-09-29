@@ -205,8 +205,12 @@
   /* Outline colour and blend follow the ink mood dial. */
   #viewport[data-mood="multiply"]  { --outline:#7a5638; --outline-blend:multiply;    --outline-alpha:.5; }
   #viewport[data-mood="soft-light"]{ --outline:#f4ede0; --outline-blend:soft-light;  --outline-alpha:.9; }
-  #viewport[data-mood="overlay"]   { --outline:#fff3d4; --outline-blend:color-dodge; --outline-alpha:.35; }
-  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 10px 1px var(--outline); }   /* bright: a lit rim */
+  #viewport[data-mood="overlay"]   { --outline:#7a7a7a; --outline-blend:color-dodge; --outline-alpha:.7; }
+  /* Bright: a soft glow. A neutral mid-grey dodge brightens the colours
+     beneath in their own hue (near-white would flare them all to white),
+     and the blur melts the rim into its halo. */
+  #viewport[data-mood="overlay"] #outlineLayer{ filter:blur(6px); }
+  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 30px 8px var(--outline); }
   #inkLayer canvas{ position:absolute; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
