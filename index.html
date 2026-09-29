@@ -182,10 +182,9 @@
   #regionWash{
     position:absolute; inset:0; opacity:.7;
     background-blend-mode: screen;
-    /* Paper absorbs ink unevenly: a tiling cloud-noise mask (panned/zoomed
-       with the board in applyTransform) breaks the broad wash into soft,
-       rough shapes around the smooth gradient cores. */
-    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.75 0 0 0 -.25'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    /* Paper absorbs ink unevenly: a tiling cloud-noise mask (NOISE_SVG, set
+       in JS and panned/zoomed with the board in applyTransform) breaks the
+       broad wash into soft, rough shapes around the smooth gradient cores. */
   }
    #dotGrid{
     position:absolute; inset:0; z-index:1; pointer-events:none;
@@ -206,8 +205,8 @@
   /* Outline colour and blend follow the ink mood dial. */
   #viewport[data-mood="multiply"]  { --outline:#7a5638; --outline-blend:multiply;    --outline-alpha:.5; }
   #viewport[data-mood="soft-light"]{ --outline:#f4ede0; --outline-blend:soft-light;  --outline-alpha:.9; }
-  #viewport[data-mood="overlay"]   { --outline:#fff3d4; --outline-blend:color-dodge; --outline-alpha:.45; }
-  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 12px 2px var(--outline); }   /* bright: a lit rim */
+  #viewport[data-mood="overlay"]   { --outline:#fff3d4; --outline-blend:color-dodge; --outline-alpha:.35; }
+  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 10px 1px var(--outline); }   /* bright: a lit rim */
   #inkLayer canvas{ position:absolute; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
@@ -825,6 +824,29 @@
   // (each non-Region card is assigned to whichever Region is closest).
   var regionColorCache = {};   // card.number -> array of up to 3 dominant "rgb(...)" colors
   var hasRegionGlow = false;
+  // The wash's paper-noise mask. An SVG mask is re-rendered from scratch at
+  // every new mask-size — i.e. every zoom step, up to 3072px square — and
+  // its fractal noise is slow enough to stall zooming. So it's drawn once
+  // into a bitmap, which only ever needs rescaling; the SVG itself is the
+  // fallback if the browser won't hand the bitmap back.
+  var NOISE_SVG = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.75 0 0 0 -.25'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>";
+  (function rasterizeNoise(){
+    function useSvg(){ regionWash.style.maskImage = 'url("' + NOISE_SVG + '")'; }
+    var img = new Image();
+    img.onload = function(){
+      var c = document.createElement("canvas");
+      c.width = c.height = 1024;
+      c.getContext("2d").drawImage(img, 0, 0);
+      try {
+        c.toBlob(function(blob){
+          if (blob) regionWash.style.maskImage = "url(" + URL.createObjectURL(blob) + ")";
+          else useSvg();
+        });
+      } catch (e) { useSvg(); }
+    };
+    img.onerror = useSvg;
+    img.src = NOISE_SVG;
+  })();
   function toRgba(rgbStr, alpha){
     var m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgbStr);
     if (!m) return rgbStr;
@@ -1072,10 +1094,10 @@
     updateRegionAuras();
     refreshInk();
   }
-  // The cards a left-drag carries along: the grabbed card, every card lower in
-  // the hierarchy (Region > Landmark > Namesake > Origin > Attribute > Advent)
-  // that overlaps it, every card lower still that overlaps those, and so on.
-  // A card only ever pulls cards ranked below itself, so an Advent pulls nothing.
+  // The cards a left-drag carries along: the grabbed card, every card of the
+  // same type or lower in the hierarchy (Region > Landmark > Namesake > Origin >
+  // Attribute > Advent) that overlaps it, every such card overlapping those, and
+  // so on. A card never pulls cards ranked above it, so an Advent pulls only Advents.
   function rank(card){ return DECK_MAP[card.deckKey].layer; }
   function dragGroup(root){
     var group = [root], seen = {};
@@ -1084,7 +1106,7 @@
       var c = group[i];
       state.cards.forEach(function(o){
         // Cards are 190px squares; overlapping (or edge-to-edge) means no gap on either axis.
-        if (!seen[o.id] && rank(o) < rank(c) && Math.abs(o.x - c.x) <= 190 && Math.abs(o.y - c.y) <= 190) {
+        if (!seen[o.id] && rank(o) <= rank(c) && Math.abs(o.x - c.x) <= 190 && Math.abs(o.y - c.y) <= 190) {
           seen[o.id] = true; group.push(o);
         }
       });
