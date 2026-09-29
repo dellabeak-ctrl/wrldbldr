@@ -182,19 +182,35 @@
   #regionWash{
     position:absolute; inset:0; opacity:.7;
     background-blend-mode: screen;
-    /* Paper absorbs ink unevenly: a tiling cloud-noise mask (panned/zoomed
-       with the board in applyTransform) breaks the broad wash into soft,
-       rough shapes around the smooth gradient cores. */
-    mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.75 0 0 0 -.25'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    /* Paper absorbs ink unevenly: a tiling cloud-noise mask (NOISE_SVG, set
+       in JS and panned/zoomed with the board in applyTransform) breaks the
+       broad wash into soft, rough shapes around the smooth gradient cores. */
   }
    #dotGrid{
     position:absolute; inset:0; z-index:1; pointer-events:none;
     display:none;
   }
-  #inkLayer{
+  #inkLayer, #outlineLayer{
     position:absolute; top:0; left:0; transform-origin:0 0; z-index:1;
     pointer-events:none;
   }
+  /* Card backdrops: one opaque rounded square per card, faded and blended as
+     a single layer so touching cards read as one outlined cluster. */
+  #outlineLayer{ opacity:var(--outline-alpha); mix-blend-mode:var(--outline-blend); transition:opacity .3s ease; }
+  .card-backdrop{
+    position:absolute; top:-8px; left:-8px; width:206px; height:206px;
+    border-radius:13.5px;   /* 8px beyond the card, concentric with its 5.5px corners */
+    background:var(--outline); transition:background-color .3s ease;
+  }
+  /* Outline colour and blend follow the ink mood dial. */
+  #viewport[data-mood="multiply"]  { --outline:#7a5638; --outline-blend:multiply;    --outline-alpha:.5; }
+  #viewport[data-mood="soft-light"]{ --outline:#f4ede0; --outline-blend:soft-light;  --outline-alpha:.9; }
+  #viewport[data-mood="overlay"]   { --outline:#7a7a7a; --outline-blend:color-dodge; --outline-alpha:.7; }
+  /* Bright: a soft glow. A neutral mid-grey dodge brightens the colours
+     beneath in their own hue (near-white would flare them all to white),
+     and the blur melts the rim into its halo. */
+  #viewport[data-mood="overlay"] #outlineLayer{ filter:blur(6px); }
+  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 30px 8px var(--outline); }
   #inkLayer canvas{ position:absolute; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
@@ -384,6 +400,7 @@
   <div id="mapTexture"></div>
   <div id="regionGlow"><div id="regionWash"></div></div>
   <div id="inkLayer"></div>
+  <div id="outlineLayer"></div>
   <div id="dotGrid"></div>
   <div id="canvas-layer"></div>
 </div>
@@ -454,6 +471,7 @@
   var viewport = document.getElementById("viewport");
   var canvasLayer = document.getElementById("canvas-layer");
   var inkLayer = document.getElementById("inkLayer");
+  var outlineLayer = document.getElementById("outlineLayer");
   var regionGlow = document.getElementById("regionGlow");
   var regionWash = document.getElementById("regionWash");
   var mapTexture = document.getElementById("mapTexture");
@@ -740,7 +758,7 @@
   }
   // ---------- Pan / zoom ----------
   function applyTransform(){
-    canvasLayer.style.transform = inkLayer.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.scale + ")";
+    canvasLayer.style.transform = inkLayer.style.transform = outlineLayer.style.transform = "translate(" + state.pan.x + "px, " + state.pan.y + "px) scale(" + state.scale + ")";
     zoompct.textContent = Math.round(state.scale * 100) + "%";
     mapTexture.style.backgroundPosition = regionWash.style.maskPosition = state.pan.x + "px " + state.pan.y + "px";
     mapTexture.style.backgroundSize = regionWash.style.maskSize = (1024 * state.scale) + "px";
@@ -810,6 +828,29 @@
   // (each non-Region card is assigned to whichever Region is closest).
   var regionColorCache = {};   // card.number -> array of up to 3 dominant "rgb(...)" colors
   var hasRegionGlow = false;
+  // The wash's paper-noise mask. An SVG mask is re-rendered from scratch at
+  // every new mask-size — i.e. every zoom step, up to 3072px square — and
+  // its fractal noise is slow enough to stall zooming. So it's drawn once
+  // into a bitmap, which only ever needs rescaling; the SVG itself is the
+  // fallback if the browser won't hand the bitmap back.
+  var NOISE_SVG = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><filter id='n' x='0' y='0' width='1' height='1'><feTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1.75 0 0 0 -.25'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>";
+  (function rasterizeNoise(){
+    function useSvg(){ regionWash.style.maskImage = 'url("' + NOISE_SVG + '")'; }
+    var img = new Image();
+    img.onload = function(){
+      var c = document.createElement("canvas");
+      c.width = c.height = 1024;
+      c.getContext("2d").drawImage(img, 0, 0);
+      try {
+        c.toBlob(function(blob){
+          if (blob) regionWash.style.maskImage = "url(" + URL.createObjectURL(blob) + ")";
+          else useSvg();
+        });
+      } catch (e) { useSvg(); }
+    };
+    img.onerror = useSvg;
+    img.src = NOISE_SVG;
+  })();
   function toRgba(rgbStr, alpha){
     var m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgbStr);
     if (!m) return rgbStr;
@@ -1057,10 +1098,10 @@
     updateRegionAuras();
     refreshInk();
   }
-  // The cards a left-drag carries along: the grabbed card, every card lower in
-  // the hierarchy (Region > Landmark > Namesake > Origin > Attribute > Advent)
-  // that overlaps it, every card lower still that overlaps those, and so on.
-  // A card only ever pulls cards ranked below itself, so an Advent pulls nothing.
+  // The cards a left-drag carries along: the grabbed card, every card of the
+  // same type or lower in the hierarchy (Region > Landmark > Namesake > Origin >
+  // Attribute > Advent) that overlaps it, every such card overlapping those, and
+  // so on. A card never pulls cards ranked above it, so an Advent pulls only Advents.
   function rank(card){ return DECK_MAP[card.deckKey].layer; }
   function dragGroup(root){
     var group = [root], seen = {};
@@ -1069,7 +1110,7 @@
       var c = group[i];
       state.cards.forEach(function(o){
         // Cards are 190px squares; overlapping (or edge-to-edge) means no gap on either axis.
-        if (!seen[o.id] && rank(o) < rank(c) && Math.abs(o.x - c.x) <= 190 && Math.abs(o.y - c.y) <= 190) {
+        if (!seen[o.id] && rank(o) <= rank(c) && Math.abs(o.x - c.x) <= 190 && Math.abs(o.y - c.y) <= 190) {
           seen[o.id] = true; group.push(o);
         }
       });
@@ -1086,6 +1127,12 @@
     // trailing lines and the janky feel while moving cards.
     el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
     el.style.zIndex = card.z;
+    // Its backdrop lives in #outlineLayer (below all cards, where it can blend
+    // with the glow and ink) and moves wherever the card moves.
+    el.backdrop = document.createElement("div");
+    el.backdrop.className = "card-backdrop";
+    el.backdrop.style.transform = el.style.transform;
+    outlineLayer.appendChild(el.backdrop);
     el.style.setProperty("--card-color", deck.color);
     el.setAttribute("draggable", "false");
     el.innerHTML =
@@ -1163,7 +1210,7 @@
       function applyPosition(){
         rafId = null;
         group.forEach(function(m){
-          m.el.style.transform = "translate3d(" + m.card.x + "px, " + m.card.y + "px, 0)";
+          m.el.style.transform = m.el.backdrop.style.transform = "translate3d(" + m.card.x + "px, " + m.card.y + "px, 0)";
         });
         updateRegionAuras();
       }
@@ -1210,14 +1257,14 @@
   function removeCard(id){
     state.cards = state.cards.filter(function(c){ return c.id !== id; });
     var el = document.getElementById("card-" + id);
-    if (el) el.remove();
+    if (el) { el.remove(); el.backdrop.remove(); }
     updateEmptyState();
     saveState();
     updateRegionAuras();
     refreshInk();
   }
   function renderAllCards(){
-    canvasLayer.innerHTML = "";
+    canvasLayer.innerHTML = outlineLayer.innerHTML = "";
     state.cards.forEach(function(card){
       renderCard(card);
     });
@@ -1228,7 +1275,7 @@
     if (state.cards.length === 0) return;
     if (!confirm("Remove all cards from the board? Deck counts are unaffected.")) return;
     state.cards = [];
-    canvasLayer.innerHTML = "";
+    canvasLayer.innerHTML = outlineLayer.innerHTML = "";
     updateEmptyState();
     saveState();
     refreshInk();
@@ -1265,7 +1312,7 @@
   function aimNeedle(deg){ moodNeedle.style.transform = "rotate(" + deg + "deg)"; }
   function setMood(i){   // -1 moody, 0 default, 1 bright
     state.inkBlend = MOODS[i + 1];
-    inkLayer.style.mixBlendMode = state.inkBlend;
+    inkLayer.style.mixBlendMode = viewport.dataset.mood = state.inkBlend;
     aimNeedle(i * 70);
     moodLabels[0].classList.toggle("on", i < 0);
     moodLabels[1].classList.toggle("on", i > 0);
