@@ -345,12 +345,14 @@
   /* Outline colour and blend follow the ink mood dial. */
   #viewport[data-mood="multiply"]  { --outline:#7a5638; --outline-blend:multiply;    --outline-alpha:.5; }
   #viewport[data-mood="soft-light"]{ --outline:#f4ede0; --outline-blend:soft-light;  --outline-alpha:.9; }
-  #viewport[data-mood="overlay"]   { --outline:#7a7a7a; --outline-blend:color-dodge; --outline-alpha:.7; }
-  /* Bright: a soft glow. A neutral mid-grey dodge brightens the colours
-     beneath in their own hue (near-white would flare them all to white),
-     and the blur melts the rim into its halo. */
-  #viewport[data-mood="overlay"] #outlineLayer{ filter:blur(6px); }
-  #viewport[data-mood="overlay"] .card-backdrop{ box-shadow:0 0 30px 8px var(--outline); }
+  #viewport[data-mood="overlay"]   { --outline:#4a4a4a; --outline-blend:color-dodge; --outline-alpha:.42; }
+  /* Bright: a clear glass rim. A dark neutral dodge lifts the ink beneath in
+     its own hue (a lighter grey would flare it all to white), and a cool/warm
+     pair of offset shadows splits the rim's edge like a prism. The shadows sit
+     on the whole layer, not each card, so a cluster keeps one seamless rim. */
+  #viewport[data-mood="overlay"] #outlineLayer{
+    filter:drop-shadow(-1.5px -1.5px 0 rgba(150,215,255,.85)) drop-shadow(1.5px 1.5px 0 rgba(255,175,220,.85));
+  }
   #inkLayer canvas{ position:absolute; }
   #canvas-layer{
     position:absolute; top:0; left:0; width:0; height:0;
