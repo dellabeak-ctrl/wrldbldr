@@ -68,7 +68,7 @@
   #tray{
     flex:1; min-width:0; align-self:stretch; margin:6px 16px;
     display:flex; align-items:center; gap:6px; padding:0 6px;
-    border:1px dashed transparent; border-radius:8px;
+    border:1px solid transparent; border-radius:8px;
     transition:border-color .15s ease, background-color .15s ease;
   }
   #tray.dragging{ border-color:var(--panel-border); }
@@ -91,15 +91,15 @@
     position:fixed; top:0; left:0; z-index:200; pointer-events:none;
     box-shadow:0 6px 18px rgba(0,0,0,.5);
   }
-  .tray-slot{ border:2px dashed var(--accent); opacity:.7; }
+  .tray-slot{ background:rgba(255,255,255,.08); }
   #trayTrash{
     display:none; flex:none; width:36px; height:36px; border-radius:6px;
     align-items:center; justify-content:center; font-size:17px;
-    border:1px dashed #7a3030; color:var(--text-dim);
+    background:rgba(255,255,255,.05); color:var(--text-dim);
     transition:background-color .15s ease, transform .15s ease;
   }
   #tray.dragging #trayTrash{ display:flex; }
-  #trayTrash.over{ background:#5a2323; border-style:solid; transform:scale(1.1); }
+  #trayTrash.over{ background:#5a2323; transform:scale(1.1); }
   /* ---------- Workspaces (save/load) ---------- */
   #workspacesWrap{ position:relative; }
   #workspacesPanel{
