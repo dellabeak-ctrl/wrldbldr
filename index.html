@@ -78,19 +78,30 @@
     overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
   }
   #trayIcons::-webkit-scrollbar{ display:none; }
-  .tray-icon, .tray-slot{ flex:none; width:36px; height:36px; border-radius:5px; }
+  .tray-icon, .tray-slot, .tray-face{ flex:none; width:36px; height:36px; border-radius:5px; }
+  /* A tray icon is a stack of faces (a lone card is a stack of one): the top card
+     in front, the rest peeking out behind it by --fan each, spread wide when open. */
   .tray-icon{
-    position:relative; overflow:hidden; cursor:grab;
+    position:relative; cursor:grab; --fan:3px;
+    width:calc(36px + (var(--n) - 1) * var(--fan));
+    transition:width .2s ease, transform .2s ease;
+  }
+  .tray-icon.open{ --fan:18px; transform:translateY(-2px); }
+  .tray-face{
+    position:absolute; top:0; left:0; overflow:hidden;
     border:2px solid var(--card-color); background:var(--card-face); color:var(--card-color);
     display:flex; align-items:center; justify-content:center;
     font-size:15px; font-weight:700; font-family:"Amperzand", Georgia, "Times New Roman", serif;
+    transform:translateX(calc(var(--i) * var(--fan)));
+    transition:transform .2s ease, box-shadow .2s ease;
   }
   .tray-icon:hover{ filter:brightness(1.15); }
-  .tray-icon img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .tray-face img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .tray-icon.open .tray-face{ box-shadow:-2px 2px 6px rgba(0,0,0,.45); }
   .tray-icon.ghost{
     position:fixed; top:0; left:0; z-index:200; pointer-events:none;
-    box-shadow:0 6px 18px rgba(0,0,0,.5);
   }
+  .tray-icon.ghost .tray-face{ box-shadow:0 6px 18px rgba(0,0,0,.5); }
   .tray-slot{ background:rgba(255,255,255,.08); }
   #trayTrash{
     display:none; flex:none; width:36px; height:36px; border-radius:6px;
@@ -509,7 +520,7 @@
     <h3>Rotating & Removing</h3>
     <p>Hover over a card to reveal a rotate (⟳) and remove (✕) button.</p>
     <h3>The tray</h3>
-    <p>Drag a card into the empty space in the top bar to set it aside in the tray. Drag tray cards to reorder them, or back onto the map to use them again. While dragging any card, drop it on the 🗑 to delete it.</p>
+    <p>Drag a card into the empty space in the top bar to set it aside in the tray. Drag tray cards to reorder them, or back onto the map to use them again. A dragged cluster goes in as a stack and comes back out in the same layout; click a stack to fan it out, and click it again to split it into single cards. While dragging any card, drop it on the 🗑 to delete it.</p>
     <h3>Lock a card</h3>
     <p>Use the lock button in the top right of each card to lock it in-place on the map</p>
     <h3>Saving your world</h3>
@@ -1074,7 +1085,7 @@
     DECKS.forEach(function(deck){ before[deck.key] = deckCards(deck); });
     state.packs[key] = on;
     var onBoard = {};
-    state.cards.concat(state.tray).forEach(function(c){ onBoard[c.deckKey + "-" + c.number] = true; });
+    state.cards.concat.apply(state.cards, state.tray).forEach(function(c){ onBoard[c.deckKey + "-" + c.number] = true; });
     DECKS.forEach(function(deck){
       var wasIn = {}, isIn = {};
       before[deck.key].forEach(function(n){ wasIn[n] = true; });
@@ -1465,12 +1476,14 @@
       rotation: 0
     };
     renderDecks();
-    placeOnBoard(card);
+    placeOnBoard([card]);
   }
-  // Put a card (freshly drawn, or back from the tray) on the board.
-  function placeOnBoard(card){
-    state.cards.push(card);
-    renderCard(card);
+  // Put cards (freshly drawn, or back from the tray) on the board.
+  function placeOnBoard(cards){
+    cards.forEach(function(card){
+      state.cards.push(card);
+      renderCard(card);
+    });
     updateEmptyState();
     saveState();
     updateRegionAuras();
@@ -1707,35 +1720,65 @@
     tray.classList.toggle("dragging", on);
     if (!on) showDropTarget({ kind: "none" });
   }
+  // A dragged clump goes in as one stack, the grabbed (highest-ranked) card on
+  // top. Its cards keep their board x/y, so the stack remembers its layout.
   function toTray(cards, index){
     takeOffBoard(cards);
-    state.tray.splice.apply(state.tray, [index, 0].concat(cards));
+    state.tray.splice(index, 0, cards);
     renderTray();
     saveState();
   }
+  // Each tray entry is a stack: an array of cards, top card first.
   function renderTray(){
+    openIcon = null;
     trayIcons.innerHTML = "";
-    state.tray.forEach(function(card){
-      var deck = DECK_MAP[card.deckKey];
+    // Trays saved before stacks existed held bare cards.
+    state.tray = state.tray.map(function(e){ return Array.isArray(e) ? e : [e]; });
+    state.tray.forEach(function(stack){
       var icon = document.createElement("div");
       icon.className = "tray-icon";
-      icon.title = deck.name + " " + card.number;
-      icon.style.setProperty("--card-color", deck.color);
-      icon.textContent = card.number;
-      var img = document.createElement("img");
-      img.alt = "";
-      img.draggable = false;
-      img.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
-      setArt(img, card);
-      icon.appendChild(img);
-      icon.addEventListener("mousedown", function(e){ dragFromTray(e, card, icon); });
+      icon.style.setProperty("--n", stack.length);
+      icon.title = stack.map(function(card){ return DECK_MAP[card.deckKey].name + " " + card.number; }).join(", ");
+      stack.forEach(function(card, i){
+        var face = document.createElement("div");
+        face.className = "tray-face";
+        face.style.setProperty("--card-color", DECK_MAP[card.deckKey].color);
+        face.style.setProperty("--i", i);
+        face.style.zIndex = stack.length - i;
+        face.textContent = card.number;
+        var img = document.createElement("img");
+        img.alt = "";
+        img.draggable = false;
+        img.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
+        setArt(img, card);
+        face.appendChild(img);
+        icon.appendChild(face);
+      });
+      icon.addEventListener("mousedown", function(e){ dragFromTray(e, stack, icon); });
       trayIcons.appendChild(icon);
     });
   }
-  // Drag a tray icon to reorder it, drop it back on the board, or trash it.
-  // The icon floats under the pointer while the slot shows where it would land;
+  // Clicking a stack lifts and fans it out; clicking it again breaks it into
+  // single cards, and clicking anywhere else settles it back down.
+  var openIcon = null;
+  function setOpen(icon){
+    if (openIcon) openIcon.classList.remove("open");
+    openIcon = icon;
+    if (icon) icon.classList.add("open");
+  }
+  function breakUp(stack){
+    state.tray.splice.apply(state.tray, [state.tray.indexOf(stack), 1].concat(stack.map(function(card){ return [card]; })));
+    renderTray();
+    saveState();
+  }
+  // Capture phase, since cards and the board stop their mousedowns from bubbling.
+  document.addEventListener("mousedown", function(e){
+    if (openIcon && !openIcon.contains(e.target)) setOpen(null);
+  }, true);
+  // Drag a tray stack to reorder it, drop it back on the board, or trash it.
+  // The stack floats under the pointer while the slot shows where it would land;
   // released anywhere else, it just goes back where it was.
-  function dragFromTray(e, card, icon){
+  function dragFromTray(e, stack, icon){
     if (e.button !== 0) return;
     e.preventDefault();
     var start = { x: e.clientX, y: e.clientY };
@@ -1746,6 +1789,7 @@
       if (!dragging) {
         if (Math.abs(ev.clientX - start.x) < 3 && Math.abs(ev.clientY - start.y) < 3) return;
         dragging = true;
+        setOpen(null);
         icon.classList.add("ghost");
         document.body.appendChild(icon);
         trayDragging(true);
@@ -1757,20 +1801,24 @@
     function onUp(ev){
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      if (!dragging) return;
+      if (!dragging) {
+        if (stack.length > 1) { if (icon === openIcon) breakUp(stack); else setOpen(icon); }
+        return;
+      }
       icon.remove();
       trayDragging(false);
       if (target.kind !== "none") {
-        state.tray.splice(state.tray.indexOf(card), 1);
+        state.tray.splice(state.tray.indexOf(stack), 1);
         if (target.kind === "tray") {
-          state.tray.splice(target.index, 0, card);
+          state.tray.splice(target.index, 0, stack);
         } else if (target.kind === "board") {
-          // Center the card under the pointer.
+          // Center the top card under the pointer, then shift the rest by the
+          // same amount so the clump comes back in the layout it left in.
           var r = viewport.getBoundingClientRect();
           var p = screenToCanvas(ev.clientX - r.left, ev.clientY - r.top);
-          card.x = snap(card, p.x - 95);
-          card.y = snap(card, p.y - 95);
-          placeOnBoard(card);
+          var top = stack[0], dx = snap(top, p.x - 95) - top.x, dy = snap(top, p.y - 95) - top.y;
+          stack.forEach(function(card){ card.x += dx; card.y += dy; });
+          placeOnBoard(stack);
         }
         saveState();
       }
