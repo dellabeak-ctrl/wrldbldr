@@ -114,9 +114,99 @@
     overflow-y:auto; z-index:40; padding:12px 10px;
     display:flex; flex-direction:column;
   }
-  #sidebar h2{
-    font-size:11px; text-transform:uppercase; letter-spacing:1px;
-    color:var(--text-dim); margin:6px 4px 10px;
+  #packs{
+    background:#252a3b; border:1px solid var(--panel-border); border-radius:8px;
+    margin-bottom:10px;
+  }
+  #packs summary{
+    list-style:none; cursor:pointer; padding:7px 10px;
+    display:flex; align-items:center; gap:6px;
+    font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim);
+  }
+  #packs summary::-webkit-details-marker{ display:none; }
+  #packs summary::after{ content:"▸"; margin-left:auto; transition:transform .15s ease; }
+  #packs[open] summary::after{ transform:rotate(90deg); }
+  #pack-summary{
+    text-transform:none; letter-spacing:0; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #pack-list{ padding:0 10px 8px; display:flex; flex-direction:column; gap:6px; }
+  .pack-option{ display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+  .pack-option input{ margin:0; accent-color:var(--accent); cursor:pointer; }
+  /* ---------- Pack activation effects ---------- */
+  .pack-fx{ position:fixed; inset:0; pointer-events:none; z-index:150; overflow:hidden; }
+  .pack-fx > *{ position:absolute; }
+  /* Classic: a shrub pops up, shakes loose some leaves, and something peeks out */
+  .fx-shrub{
+    width:84px; height:68px; transform-origin:50% 100%;
+    animation:shrub-life 2.9s ease-out forwards;
+  }
+  .fx-shrub svg{ display:block; width:100%; height:100%; overflow:visible; }
+  @keyframes shrub-life{
+    0%   { transform:scale(0); }
+    12%  { transform:scale(1.12, .92); }
+    18%  { transform:scale(.96, 1.05); }
+    23%  { transform:scale(1); }
+    28%  { transform:rotate(-6deg); }
+    33%  { transform:rotate(6deg); }
+    38%  { transform:rotate(-4deg); }
+    43%  { transform:rotate(3deg); }
+    48%  { transform:rotate(0); }
+    86%  { transform:scale(1); opacity:1; }
+    100% { transform:scale(0); opacity:0; }
+  }
+  .fx-critter{ opacity:0; animation:critter-peek 2.9s ease-out forwards; }
+  @keyframes critter-peek{
+    0%, 45% { opacity:0; transform:translateY(5px); }
+    52%, 84% { opacity:1; transform:translateY(0); }
+    90%, 100% { opacity:0; transform:translateY(5px); }
+  }
+  .fx-eye{ transform-box:fill-box; transform-origin:50% 50%; animation:critter-blink 2.9s linear forwards; }
+  @keyframes critter-blink{ 0%, 66%, 71%, 100% { transform:scaleY(1); } 68.5% { transform:scaleY(.1); } }
+  .fx-pupils{ animation:critter-look 2.9s ease-in-out forwards; }
+  @keyframes critter-look{ 0%, 56% { transform:translateX(0); } 60%, 70% { transform:translateX(-1.5px); } 75%, 100% { transform:translateX(1.5px); } }
+  .fx-leaf{
+    width:9px; height:6px; border-radius:0 100% 0 100%;
+    background:var(--leaf); opacity:0;
+    animation:leaf-fall 1.9s ease-in forwards; animation-delay:var(--delay);
+  }
+  @keyframes leaf-fall{
+    0%   { opacity:0; transform:translate(0, 0) rotate(0); }
+    8%   { opacity:1; }
+    40%  { transform:translate(calc(var(--dx) * .6), 22px) rotate(calc(var(--rot) * .5)); }
+    100% { opacity:0; transform:translate(var(--dx), 70px) rotate(var(--rot)); }
+  }
+  /* Frozen: icicles grow down from the top bar while snow drifts past the box */
+  .fx-frost{
+    left:0; right:0; top:55px; height:3px;
+    background:linear-gradient(90deg, transparent, rgba(220,240,255,.85) 15%, rgba(220,240,255,.85) 85%, transparent);
+    box-shadow:0 0 8px rgba(190,225,255,.7);
+    animation:frost-line 3s ease forwards;
+  }
+  @keyframes frost-line{ 0% { opacity:0; } 12%, 78% { opacity:1; } 100% { opacity:0; } }
+  .fx-icicle{
+    top:56px; transform-origin:50% 0;
+    clip-path:polygon(0 0, 100% 0, 55% 100%, 45% 100%);
+    background:linear-gradient(180deg, rgba(240,250,255,.95), rgba(170,215,245,.55));
+    transform:scaleY(0);
+    animation:icicle-grow 3s cubic-bezier(.3,.7,.4,1) forwards; animation-delay:var(--delay);
+  }
+  @keyframes icicle-grow{
+    0%   { transform:scaleY(0); opacity:1; }
+    28%  { transform:scaleY(1); opacity:1; }
+    75%  { transform:scaleY(1); opacity:1; }
+    100% { transform:scaleY(.7) translateY(6px); opacity:0; }
+  }
+  .fx-flake{
+    color:#e6f4ff; text-shadow:0 0 4px rgba(170,215,255,.9); line-height:1; opacity:0;
+    animation:flake-fall var(--dur) linear forwards; animation-delay:var(--delay);
+  }
+  @keyframes flake-fall{
+    0%   { opacity:0; transform:translate(0, 0) rotate(0); }
+    15%  { opacity:1; }
+    50%  { transform:translate(var(--sway), calc(var(--fall) * .5)) rotate(90deg); }
+    80%  { opacity:.9; }
+    100% { opacity:0; transform:translate(calc(var(--sway) * -.5), var(--fall)) rotate(180deg); }
   }
   .deck{
     background:#252a3b; border:1px solid var(--panel-border); border-radius:8px;
@@ -374,7 +464,10 @@
   </div>
 </div>
 <div id="sidebar">
-  <h2>Decks</h2>
+  <details id="packs">
+    <summary>Packs <span id="pack-summary"></span></summary>
+    <div id="pack-list"></div>
+  </details>
   <div id="deck-list"></div>
   <div id="sidebar-footer">
     <div id="moodDial" role="slider" tabindex="0" aria-label="Ink mood" aria-valuemin="-1" aria-valuemax="1">
@@ -409,16 +502,45 @@
 <script>
 (function(){
   "use strict";
+  // range(a, b) lists the card numbers a through b.
+  function range(a, b){
+    var r = [];
+    for (var i = a; i <= b; i++) r.push(i);
+    return r;
+  }
+  // Card packs, toggled from the sidebar. Each deck's `packs` lists which
+  // card numbers belong to each pack — use range(a, b) or a plain list
+  // like [1, 4, 9]. A card listed in both packs is only dealt once.
+  var PACKS = [
+    { key:"classic", name:"Classic" },
+    { key:"frozen",  name:"Frozen"  }
+  ];
   var DECKS = [
-    { key:"region",    name:"Region",    desc:"Main terrain type, hub for other cards", count:32, color:"var(--c-region)", layer:600000     },
-    { key:"landmark",  name:"Landmark",  desc:"Geographical sites and points of interest",         count:48, color:"var(--c-landmark)", layer: 500000  },
-    { key:"namesake",  name:"Namesake",  desc:"In-world nicknames for areas",  count:48, color:"var(--c-namesake)", layer:400000  },
-    { key:"origin",    name:"Origin",    desc:"Significant past event(s)",  count:32, color:"var(--c-origin)", layer:300000    },
-    { key:"attribute", name:"Attribute", desc:"Present-day features",   count:48, color:"var(--c-attribute)", layer:200000 },
-    { key:"advent",    name:"Advent",    desc:"Future events and story hooks", count:32, color:"var(--c-advent)", layer:100000 }
+    { key:"region",    name:"Region",    desc:"Main terrain type", color:"var(--c-region)", layer:600000,
+      packs:{ classic:range(1, 32), frozen:range(33, 40) } },
+    { key:"landmark",  name:"Landmark",  desc:"Sites and points of interest",         color:"var(--c-landmark)", layer:500000,
+      packs:{ classic:range(1, 48), frozen:range(49, 60) } },
+    { key:"namesake",  name:"Namesake",  desc:"In-world nicknames for areas",  color:"var(--c-namesake)", layer:400000,
+      packs:{ classic:range(1, 48), frozen:range(49, 60) } },
+    { key:"origin",    name:"Origin",    desc:"Significant past event(s)",  color:"var(--c-origin)", layer:300000,
+      packs:{ classic:range(1, 32), frozen:range(33, 40) } },
+    { key:"attribute", name:"Attribute", desc:"Present-day features",   color:"var(--c-attribute)", layer:200000,
+      packs:{ classic:range(1, 48), frozen:range(49, 60) } },
+    { key:"advent",    name:"Advent",    desc:"Future events and story hooks", color:"var(--c-advent)", layer:100000,
+      packs:{ classic:range(1, 32), frozen:range(33, 40) } }
   ];
   var DECK_MAP = {};
   DECKS.forEach(function(d){ DECK_MAP[d.key] = d; });
+  function defaultPacks(){
+    var p = {};
+    PACKS.forEach(function(pack){ p[pack.key] = true; });
+    return p;
+  }
+  function legacyPacks(){
+    var p = {};
+    PACKS.forEach(function(pack){ p[pack.key] = pack.key === "classic"; });
+    return p;
+  }
   var STORAGE_KEY = "world-builder-state-v1";
   var SAVES_KEY = "world-builder-saves-v1";
   var state = {
@@ -429,11 +551,22 @@
     nextId: 1,
     drawCount: 0,
     activeSaveId: null,   // id of the named workspace currently loaded, if any
-    activeSaveName: null
+    activeSaveName: null,
+    packs: defaultPacks()   // pack key -> whether its cards are in play
   };
-  function shuffledRange(n){
-    var arr = [];
-    for (var i = 1; i <= n; i++) arr.push(i);
+  // Every card number in a deck that belongs to at least one active pack.
+  function deckCards(deck){
+    var seen = {}, out = [];
+    PACKS.forEach(function(pack){
+      if (!state.packs[pack.key]) return;
+      (deck.packs[pack.key] || []).forEach(function(n){
+        if (!seen[n]) { seen[n] = true; out.push(n); }
+      });
+    });
+    return out;
+  }
+  function shuffled(list){
+    var arr = list.slice();
     for (var i = arr.length - 1; i > 0; i--) {
       var j = Math.floor(Math.random() * (i + 1));
       var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
@@ -442,7 +575,7 @@
   }
   function freshDecks(){
     var d = {};
-    DECKS.forEach(function(deck){ d[deck.key] = shuffledRange(deck.count); });
+    DECKS.forEach(function(deck){ d[deck.key] = shuffled(deckCards(deck)); });
     return d;
   }
   function loadState(){
@@ -452,6 +585,8 @@
       var parsed = JSON.parse(raw);
       if (!parsed || !parsed.decks || !parsed.cards) return false;
       state = Object.assign(state, parsed);
+      // Boards saved before packs existed were dealt from the classic cards only.
+      if (!parsed.packs) state.packs = legacyPacks();
       return true;
     } catch (e) {
       return false;
@@ -476,6 +611,8 @@
   var regionWash = document.getElementById("regionWash");
   var mapTexture = document.getElementById("mapTexture");
   var deckListEl = document.getElementById("deck-list");
+  var packListEl = document.getElementById("pack-list");
+  var packSummaryEl = document.getElementById("pack-summary");
   var emptyState = document.getElementById("empty-state");
   var zoompct = document.getElementById("zoompct");
   var toastEl = document.getElementById("toast");
@@ -523,6 +660,7 @@
   function snapshotForSave(){
     return JSON.parse(JSON.stringify({
       decks: state.decks,
+      packs: state.packs,
       cards: state.cards,
       pan: state.pan,
       scale: state.scale,
@@ -631,6 +769,7 @@
     }
     var snap = JSON.parse(JSON.stringify(save.snapshot));
     state.decks = snap.decks;
+    state.packs = snap.packs || legacyPacks();
     state.cards = snap.cards;
     state.pan = snap.pan;
     state.scale = snap.scale;
@@ -727,10 +866,133 @@
     }
     importSavesInput.value = "";
   });
+  // ---------- Pack picker ----------
+  function renderPacks(){
+    packListEl.innerHTML = "";
+    PACKS.forEach(function(pack){
+      var label = document.createElement("label");
+      label.className = "pack-option";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = !!state.packs[pack.key];
+      box.addEventListener("change", function(){
+        var othersOn = PACKS.some(function(p){ return p.key !== pack.key && state.packs[p.key]; });
+        if (!box.checked && !othersOn) {
+          box.checked = true;
+          toast("At least one pack must stay on");
+          return;
+        }
+        setPackActive(pack.key, box.checked);
+        if (box.checked) playPackEffect(pack.key, label);
+      });
+      label.appendChild(box);
+      label.appendChild(document.createTextNode(pack.name));
+      packListEl.appendChild(label);
+    });
+    packSummaryEl.textContent = PACKS
+      .filter(function(p){ return state.packs[p.key]; })
+      .map(function(p){ return p.name; })
+      .join(" + ");
+  }
+  // A short celebratory flourish when a pack is switched on. Everything is
+  // drawn in a throwaway overlay that removes itself after a few seconds.
+  var packFx = {};
+  function playPackEffect(key, anchor){
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (packFx[key]) { clearTimeout(packFx[key].timer); packFx[key].el.remove(); }
+    var fx = document.createElement("div");
+    fx.className = "pack-fx";
+    var r = anchor.getBoundingClientRect();
+    function rand(a, b){ return a + Math.random() * (b - a); }
+    function add(cls, css){
+      var el = document.createElement("div");
+      el.className = cls;
+      Object.keys(css).forEach(function(k){ el.style.setProperty(k, css[k]); });
+      fx.appendChild(el);
+      return el;
+    }
+    if (key === "classic") {
+      // Sprout just past the sidebar's edge, level with the checkbox.
+      var sx = r.right + 14, sy = r.top + r.height / 2 + 20;
+      var shrub = add("fx-shrub", { left:sx + "px", top:(sy - 68) + "px" });
+      shrub.innerHTML =
+        '<svg viewBox="0 0 84 68" aria-hidden="true">' +
+          '<ellipse cx="42" cy="65" rx="34" ry="4" fill="rgba(0,0,0,.25)"/>' +
+          '<circle cx="20" cy="46" r="17" fill="#3f7a37"/>' +
+          '<circle cx="64" cy="46" r="17" fill="#3f7a37"/>' +
+          '<circle cx="42" cy="32" r="22" fill="#4c9142"/>' +
+          '<circle cx="28" cy="24" r="12" fill="#58a44c"/>' +
+          '<circle cx="58" cy="26" r="11" fill="#58a44c"/>' +
+          '<ellipse cx="42" cy="52" rx="34" ry="14" fill="#468a3d"/>' +
+          '<ellipse cx="42" cy="42" rx="14" ry="9" fill="#1c3519"/>' +
+          '<g class="fx-critter">' +
+            '<path d="M31 36 l3 -8 l4 6 z M53 36 l-3 -8 l-4 6 z" fill="#8a6a4a"/>' +
+            '<ellipse class="fx-eye" cx="36.5" cy="41" rx="4" ry="4.4" fill="#fff"/>' +
+            '<ellipse class="fx-eye" cx="47.5" cy="41" rx="4" ry="4.4" fill="#fff"/>' +
+            '<g class="fx-pupils"><circle cx="37" cy="41.5" r="2.1" fill="#1a1a1a"/><circle cx="48" cy="41.5" r="2.1" fill="#1a1a1a"/></g>' +
+            '<ellipse cx="42" cy="46.5" rx="1.6" ry="1.1" fill="#e89aa8"/>' +
+          '</g>' +
+          '<circle cx="15" cy="56" r="9" fill="#3a7233"/><circle cx="69" cy="56" r="9" fill="#3a7233"/>' +
+        '</svg>';
+      var leafColors = ["#58a44c", "#7cbf5a", "#3f7a37", "#a8c95a"];
+      for (var i = 0; i < 9; i++) {
+        add("fx-leaf", {
+          left:(sx + rand(14, 70)) + "px", top:(sy - rand(46, 62)) + "px",
+          "--leaf":leafColors[i % leafColors.length],
+          "--dx":rand(-34, 34).toFixed(0) + "px", "--rot":rand(-300, 300).toFixed(0) + "deg",
+          "--delay":(0.8 + i * 0.07 + rand(0, 0.15)).toFixed(2) + "s"
+        });
+      }
+    } else if (key === "frozen") {
+      add("fx-frost", {});
+      for (var x = rand(0, 20); x < window.innerWidth; x += rand(16, 40)) {
+        var w = rand(6, 14);
+        add("fx-icicle", {
+          left:x + "px", width:w + "px", height:(w * rand(2.5, 5.5)).toFixed(0) + "px",
+          "--delay":rand(0, 0.45).toFixed(2) + "s"
+        });
+      }
+      for (var j = 0; j < 18; j++) {
+        var flake = add("fx-flake", {
+          left:rand(r.left - 24, r.right + 30) + "px", top:rand(r.top - 34, r.top + 4) + "px",
+          "font-size":rand(8, 15).toFixed(0) + "px",
+          "--sway":rand(-14, 14).toFixed(0) + "px", "--fall":rand(40, 80).toFixed(0) + "px",
+          "--dur":rand(1.5, 2.4).toFixed(2) + "s", "--delay":rand(0, 0.7).toFixed(2) + "s"
+        });
+        flake.textContent = "\u2744";
+      }
+    }
+    document.body.appendChild(fx);
+    packFx[key] = { el:fx, timer:setTimeout(function(){ fx.remove(); delete packFx[key]; }, 3300) };
+  }
+  // Turning a pack on shuffles its cards into what's left of each deck
+  // (skipping any already on the board); turning it off pulls them out.
+  function setPackActive(key, on){
+    var before = {};
+    DECKS.forEach(function(deck){ before[deck.key] = deckCards(deck); });
+    state.packs[key] = on;
+    var onBoard = {};
+    state.cards.forEach(function(c){ onBoard[c.deckKey + "-" + c.number] = true; });
+    DECKS.forEach(function(deck){
+      var wasIn = {}, isIn = {};
+      before[deck.key].forEach(function(n){ wasIn[n] = true; });
+      var now = deckCards(deck);
+      now.forEach(function(n){ isIn[n] = true; });
+      var remaining = (state.decks[deck.key] || []).filter(function(n){ return isIn[n]; });
+      now.forEach(function(n){
+        if (!wasIn[n] && !onBoard[deck.key + "-" + n]) remaining.push(n);
+      });
+      state.decks[deck.key] = shuffled(remaining);
+    });
+    renderDecks();
+    saveState();
+  }
   // ---------- Deck sidebar ----------
   function renderDecks(){
+    renderPacks();
     deckListEl.innerHTML = "";
     DECKS.forEach(function(deck){
+      var total = deckCards(deck).length;
       var remaining = state.decks[deck.key] ? state.decks[deck.key].length : 0;
       var el = document.createElement("div");
       el.className = "deck" + (remaining === 0 ? " empty" : "");
@@ -739,7 +1001,7 @@
         '<div class="deck-name">' + deck.name + '</div>' +
         '<div class="deck-desc">' + deck.desc + '</div>' +
         '<div class="deck-row">' +
-          '<span class="deck-count">' + remaining + ' / ' + deck.count + ' left</span>' +
+          '<span class="deck-count">' + remaining + ' / ' + total + ' left</span>' +
           '<button class="deck-reshuffle" title="Reshuffle this deck" data-key="' + deck.key + '">↻</button>' +
         '</div>';
       el.addEventListener("click", function(e){
@@ -748,10 +1010,10 @@
       });
       el.querySelector(".deck-reshuffle").addEventListener("click", function(e){
         e.stopPropagation();
-        state.decks[deck.key] = shuffledRange(deck.count);
+        state.decks[deck.key] = shuffled(deckCards(deck));
         renderDecks();
         saveState();
-        toast(deck.name + " deck reshuffled (" + deck.count + " cards)");
+        toast(deck.name + " deck reshuffled (" + total + " cards)");
       });
       deckListEl.appendChild(el);
     });
@@ -1069,8 +1331,10 @@
   function drawCard(deckKey){
     var deck = DECK_MAP[deckKey];
     if (!state.decks[deckKey] || state.decks[deckKey].length === 0) {
-      state.decks[deckKey] = shuffledRange(deck.count);
-      toast(deck.name + " deck was empty — reshuffled a fresh set of " + deck.count);
+      var all = deckCards(deck);
+      if (all.length === 0) { toast("No " + deck.name + " cards in the selected packs"); return; }
+      state.decks[deckKey] = shuffled(all);
+      toast(deck.name + " deck was empty — reshuffled a fresh set of " + all.length);
     }
     var number = state.decks[deckKey].pop();
     var r = viewport.getBoundingClientRect();
@@ -1293,11 +1557,11 @@
   // already cached and appears instantly instead of loading on demand.
   function preloadCardImages(){
     DECKS.forEach(function(deck){
-      for (var n = 1; n <= deck.count; n++) {
+      deckCards(deck).forEach(function(n){
         var padded = n < 10 ? "0" + n : "" + n;
         var img = new Image();
         img.src = deck.key + "s/" + deck.key + "-" + padded + ".jpg";
-      }
+      });
     });
   }
   // ---------- Ink mood dial ----------
