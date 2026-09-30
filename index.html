@@ -879,12 +879,6 @@
       box.type = "checkbox";
       box.checked = !!state.packs[pack.key];
       box.addEventListener("change", function(){
-        var othersOn = PACKS.some(function(p){ return p.key !== pack.key && state.packs[p.key]; });
-        if (!box.checked && !othersOn) {
-          box.checked = true;
-          toast("At least one pack must stay on");
-          return;
-        }
         setPackActive(pack.key, box.checked);
         if (box.checked) playPackEffect(pack.key, label);
       });
@@ -895,7 +889,7 @@
     packSummaryEl.textContent = PACKS
       .filter(function(p){ return state.packs[p.key]; })
       .map(function(p){ return p.name; })
-      .join(" + ");
+      .join(" + ") || "None";
   }
   // A short celebratory flourish when a pack is switched on. Everything is
   // drawn in a throwaway overlay that removes itself after a few seconds.
@@ -915,8 +909,10 @@
       return el;
     }
     if (key === "classic") {
-      // Sprout just past the sidebar's edge, level with the checkbox.
-      var sx = r.right + 14, sy = r.top + r.height / 2 + 20;
+      // Sprout in the workspace's top-left corner, beside the Packs dropdown.
+      var packsBox = document.getElementById("packs").getBoundingClientRect();
+      var sx = document.getElementById("sidebar").getBoundingClientRect().right + 14;
+      var sy = packsBox.top + 68;
       var shrub = add("fx-shrub", { left:sx + "px", top:(sy - 68) + "px" });
       shrub.innerHTML =
         '<svg viewBox="0 0 84 68" aria-hidden="true">' +
@@ -1331,8 +1327,16 @@
   function updateEmptyState(){
     emptyState.classList.toggle("hidden", state.cards.length > 0);
   }
+  function anyPackActive(){
+    return PACKS.some(function(p){ return state.packs[p.key]; });
+  }
   function drawCard(deckKey){
     var deck = DECK_MAP[deckKey];
+    if (!anyPackActive()) {
+      document.getElementById("packs").open = true;
+      toast("Select a pack to draw cards");
+      return;
+    }
     if (!state.decks[deckKey] || state.decks[deckKey].length === 0) {
       var all = deckCards(deck);
       if (all.length === 0) { toast("No " + deck.name + " cards in the selected packs"); return; }
