@@ -1435,15 +1435,9 @@
         refreshInk();
       }
     };
-    artImg.onerror = function(){
-      if (/\.jpg$/i.test(artImg.src)) {
-        artImg.src = artImg.src.replace(/\.jpg$/i, ".png");
-      } else {
-        artImg.remove();
-      }
-    };
+    artImg.onerror = function(){ artImg.remove(); };
     var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
-    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".jpg";
+    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".png";
     // Right-click on the card to suppress the browser's context menu,
     // since right-click-drag moves a single card.
     el.addEventListener("contextmenu", function(e){ e.preventDefault(); });
@@ -1560,7 +1554,7 @@
       deckCards(deck).forEach(function(n){
         var padded = n < 10 ? "0" + n : "" + n;
         var img = new Image();
-        img.src = deck.key + "s/" + deck.key + "-" + padded + ".jpg";
+        img.src = deck.key + "s/" + deck.key + "-" + padded + ".png";
       });
     });
   }
