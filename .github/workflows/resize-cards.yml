@@ -1,14 +1,14 @@
 name: Resize card images
 
 # Runs automatically whenever new/changed files land in any of the six
-# card folders — resizes/crops them to a uniform square JPEG and commits
+# card folders — resizes/crops them to a uniform square PNG and commits
 # the result straight back to the repo. No local script needed.
 #
 # You can also trigger this manually from the "Actions" tab on GitHub
 # (click "Resize card images" -> "Run workflow"), and optionally check
 # the "force" box to reprocess every image, including ones that were
-# already converted before — useful whenever you change TRIM_PERCENT or
-# TARGET_SIZE in resize_cards.py and want it to apply retroactively.
+# already processed. Careful: that trims TRIM_PERCENT off every card
+# again, so only force it right after uploading fresh originals.
 on:
   push:
     paths:
