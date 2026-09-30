@@ -64,6 +64,42 @@
   #zoomctl{ display:flex; align-items:center; gap:4px; }
   #zoomctl .btn{ padding:6px 10px; }
   #zoompct{ font-size:12px; color:var(--text-dim); width:42px; text-align:center; }
+  /* ---------- Tray (cards set aside in the top bar) ---------- */
+  #tray{
+    flex:1; min-width:0; align-self:stretch; margin:6px 16px;
+    display:flex; align-items:center; gap:6px; padding:0 6px;
+    border:1px dashed transparent; border-radius:8px;
+    transition:border-color .15s ease, background-color .15s ease;
+  }
+  #tray.dragging{ border-color:var(--panel-border); }
+  #tray.over{ border-color:var(--accent); background:rgba(216,184,106,.06); }
+  #trayIcons{
+    flex:1; min-width:0; height:100%; display:flex; align-items:center; gap:6px;
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+  }
+  #trayIcons::-webkit-scrollbar{ display:none; }
+  .tray-icon, .tray-slot{ flex:none; width:36px; height:36px; border-radius:5px; }
+  .tray-icon{
+    position:relative; overflow:hidden; cursor:grab;
+    border:2px solid var(--card-color); background:var(--card-face); color:var(--card-color);
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; font-weight:700; font-family:"Amperzand", Georgia, "Times New Roman", serif;
+  }
+  .tray-icon:hover{ filter:brightness(1.15); }
+  .tray-icon img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .tray-icon.ghost{
+    position:fixed; top:0; left:0; z-index:200; pointer-events:none;
+    box-shadow:0 6px 18px rgba(0,0,0,.5);
+  }
+  .tray-slot{ border:2px dashed var(--accent); opacity:.7; }
+  #trayTrash{
+    display:none; flex:none; width:36px; height:36px; border-radius:6px;
+    align-items:center; justify-content:center; font-size:17px;
+    border:1px dashed #7a3030; color:var(--text-dim);
+    transition:background-color .15s ease, transform .15s ease;
+  }
+  #tray.dragging #trayTrash{ display:flex; }
+  #trayTrash.over{ background:#5a2323; border-style:solid; transform:scale(1.1); }
   /* ---------- Workspaces (save/load) ---------- */
   #workspacesWrap{ position:relative; }
   #workspacesPanel{
@@ -222,6 +258,8 @@
     cursor:grab; will-change:transform; backface-visibility:hidden;
   }
   .card:active{ cursor:grabbing; }
+  /* Faded while being dragged over the tray or the trash. */
+  .card.leaving, .card-backdrop.leaving{ opacity:.35; }
   .card-art-wrap{
     position:relative; width:100%; height:100%; overflow:hidden; border-radius:5.5px;
     will-change:transform; backface-visibility:hidden;
@@ -303,6 +341,10 @@
     <h1>Deck <span>of Worlds</span></h1>
     <span class="hint">made with love by D & T <3</span>
   </div>
+  <div id="tray">
+    <div id="trayIcons"></div>
+    <div id="trayTrash" title="Drop here to delete">🗑</div>
+  </div>
   <div id="topbar-right">
     <div id="workspacesWrap">
       <button class="btn" id="workspacesBtn">💾 Workspaces</button>
@@ -357,6 +399,8 @@
     <p>Click and drag a card to move it along with every card tucked under it that's lower in the hierarchy (Region → Landmark → Namesake → Origin → Attribute → Advent). Right-click and drag to move just that one card.</p>
     <h3>Rotating & Removing</h3>
     <p>Hover over a card to reveal a rotate (⟳) and remove (✕) button.</p>
+    <h3>The tray</h3>
+    <p>Drag a card into the empty space in the top bar to set it aside in the tray. Drag tray cards to reorder them, or back onto the map to use them again. While dragging any card, drop it on the 🗑 to delete it.</p>
     <h3>Lock a card</h3>
     <p>Use the lock button in the top right of each card to lock it in-place on the map</p>
     <h3>Saving your world</h3>
@@ -424,6 +468,7 @@
   var state = {
     decks: {},      // key -> array of remaining numbers
     cards: [],      // {id, deckKey, number, x, y, text, z}
+    tray: [],       // cards set aside in the top-bar tray, in order (never also in cards)
     pan: { x: 0, y: 0 },
     scale: 1,
     nextId: 1,
@@ -477,6 +522,9 @@
   var mapTexture = document.getElementById("mapTexture");
   var deckListEl = document.getElementById("deck-list");
   var emptyState = document.getElementById("empty-state");
+  var tray = document.getElementById("tray");
+  var trayIcons = document.getElementById("trayIcons");
+  var trayTrash = document.getElementById("trayTrash");
   var zoompct = document.getElementById("zoompct");
   var toastEl = document.getElementById("toast");
   var workspacesWrap = document.getElementById("workspacesWrap");
@@ -524,6 +572,7 @@
     return JSON.parse(JSON.stringify({
       decks: state.decks,
       cards: state.cards,
+      tray: state.tray,
       pan: state.pan,
       scale: state.scale,
       drawCount: state.drawCount,
@@ -625,13 +674,14 @@
     var saves = loadSaves();
     var save = saves.find(function(s){ return s.id === id; });
     if (!save) return;
-    if (state.cards.length > 0 &&
+    if ((state.cards.length > 0 || state.tray.length > 0) &&
         !confirm('Load "' + save.name + '"? This replaces your current board — any unsaved changes will be lost.')) {
       return;
     }
     var snap = JSON.parse(JSON.stringify(save.snapshot));
     state.decks = snap.decks;
     state.cards = snap.cards;
+    state.tray = snap.tray || [];
     state.pan = snap.pan;
     state.scale = snap.scale;
     state.drawCount = snap.drawCount;
@@ -640,6 +690,7 @@
     state.activeSaveName = save.name;
     renderDecks();
     renderAllCards();
+    renderTray();
     applyTransform();
     saveState();
     closeWorkspacesPanel();
@@ -1090,13 +1141,48 @@
       z: z,
       rotation: 0
     };
+    renderDecks();
+    placeOnBoard(card);
+  }
+  // Put a card (freshly drawn, or back from the tray) on the board.
+  function placeOnBoard(card){
     state.cards.push(card);
     renderCard(card);
-    renderDecks();
     updateEmptyState();
     saveState();
     updateRegionAuras();
     refreshInk();
+  }
+  // Lift cards off the board: out of state.cards, their elements and
+  // backdrops removed, and the glow and ink redrawn once for the lot.
+  function takeOffBoard(cards){
+    cards.forEach(function(card){
+      var el = document.getElementById("card-" + card.id);
+      if (el) { el.remove(); el.backdrop.remove(); }
+    });
+    state.cards = state.cards.filter(function(c){ return cards.indexOf(c) < 0; });
+    updateEmptyState();
+    saveState();
+    updateRegionAuras();
+    refreshInk();
+  }
+  // Snap a card's center (not its top-left corner) to the grid; Advents sit on a finer one.
+  function snap(card, pos){
+    var grid = card.deckKey === "advent" ? 21 : 42;
+    return Math.round((pos + 95) / grid) * grid - 95;
+  }
+  // Load a card's photo, named like "regions/region-07.jpg", into img. If
+  // it's missing, try .png, then give up and remove img so the plain number shows.
+  function setArt(img, card){
+    img.onerror = function(){
+      if (/\.jpg$/i.test(img.src)) {
+        img.src = img.src.replace(/\.jpg$/i, ".png");
+      } else {
+        img.remove();
+      }
+    };
+    var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
+    img.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".jpg";
   }
   // The cards a left-drag carries along: the grabbed card, every card of the
   // same type or lower in the hierarchy (Region > Landmark > Namesake > Origin >
@@ -1150,8 +1236,7 @@
     // actual top-right corner on screen, regardless of rotation.
     var artWrap = el.querySelector(".card-art-wrap");
     artWrap.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
-    // Look for a matching photo, named like "region-7.png" inside a
-    // "regions" folder beside the HTML file. If it loads, it fills the
+    // Look for a matching photo (see setArt). If it loads, it fills the
     // card completely; if not (or on a stale cache), fall back to the
     // plain number, no error shown.
     var artImg = el.querySelector(".card-art");
@@ -1171,15 +1256,7 @@
         refreshInk();
       }
     };
-    artImg.onerror = function(){
-      if (/\.jpg$/i.test(artImg.src)) {
-        artImg.src = artImg.src.replace(/\.jpg$/i, ".png");
-      } else {
-        artImg.remove();
-      }
-    };
-    var paddedNumber = card.number < 10 ? "0" + card.number : "" + card.number;
-    artImg.src = card.deckKey + "s/" + card.deckKey + "-" + paddedNumber + ".jpg";
+    setArt(artImg, card);
     // Right-click on the card to suppress the browser's context menu,
     // since right-click-drag moves a single card.
     el.addEventListener("contextmenu", function(e){ e.preventDefault(); });
@@ -1198,11 +1275,7 @@
       var start = { x: e.clientX, y: e.clientY };
       var dragging = false;
       var rafId = null;
-      var SNAP_SIZE = card.deckKey === "advent" ? 21 : 42;
-      // Snap a card's center (not its top-left corner) to the grid.
-      function snap(pos, size){
-        return Math.round((pos + size / 2) / SNAP_SIZE) * SNAP_SIZE - size / 2;
-      }
+      var target = { kind: "board" };
       // Batch position updates to at most once per animation frame instead
       // of once per mousemove event (which can fire far more often than
       // the screen refreshes) — this is what keeps dragging smooth even
@@ -1223,7 +1296,15 @@
           if (Math.abs(ev.clientX - start.x) < 3 && Math.abs(ev.clientY - start.y) < 3) return;
           dragging = true;
           group.forEach(function(m){ liftInk(m.card); });
+          trayDragging(true);
         }
+        target = dropTarget(ev.clientX, ev.clientY);
+        showDropTarget(target);
+        var leaving = target.kind === "tray" || target.kind === "trash";
+        group.forEach(function(m){
+          m.el.classList.toggle("leaving", leaving);
+          m.el.backdrop.classList.toggle("leaving", leaving);
+        });
         moveBy((ev.clientX - start.x) / state.scale, (ev.clientY - start.y) / state.scale);
         if (rafId === null) rafId = requestAnimationFrame(applyPosition);
       }
@@ -1232,19 +1313,27 @@
         window.removeEventListener("mouseup", onUp);
         if (!dragging) return;
         if (rafId !== null) cancelAnimationFrame(rafId);
-        // Snap the grabbed card, then shift the rest by the same amount so
-        // tucked cards keep their exact offsets from it.
-        moveBy(snap(card.x, el.offsetWidth) - group[0].x, snap(card.y, el.offsetHeight) - group[0].y);
-        applyPosition();
-        saveState();
-        refreshInk();
+        trayDragging(false);
+        var cards = group.map(function(m){ return m.card; });
+        if (target.kind === "tray") {
+          toTray(cards, target.index);
+        } else if (target.kind === "trash") {
+          takeOffBoard(cards);
+        } else {
+          // Snap the grabbed card, then shift the rest by the same amount so
+          // tucked cards keep their exact offsets from it.
+          moveBy(snap(card, card.x) - group[0].x, snap(card, card.y) - group[0].y);
+          applyPosition();
+          saveState();
+          refreshInk();
+        }
       }
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     });
     el.querySelector(".card-close").addEventListener("click", function(e){
       e.stopPropagation();
-      removeCard(card.id);
+      takeOffBoard([card]);
     });
     el.querySelector(".card-rotate").addEventListener("click", function(e){
       e.stopPropagation();
@@ -1254,15 +1343,6 @@
     });
     canvasLayer.appendChild(el);
   }
-  function removeCard(id){
-    state.cards = state.cards.filter(function(c){ return c.id !== id; });
-    var el = document.getElementById("card-" + id);
-    if (el) { el.remove(); el.backdrop.remove(); }
-    updateEmptyState();
-    saveState();
-    updateRegionAuras();
-    refreshInk();
-  }
   function renderAllCards(){
     canvasLayer.innerHTML = outlineLayer.innerHTML = "";
     state.cards.forEach(function(card){
@@ -1271,9 +1351,125 @@
     updateEmptyState();
     refreshInk();
   }
+  // ---------- Tray ----------
+  // The empty stretch of the top bar holds cards set aside as small icons.
+  // A card lives in exactly one of state.cards (the board) or state.tray, so
+  // moving it just hands the same card object from one array to the other.
+  // Board cards and tray icons share one drop target: the tray (at an index),
+  // the trash that appears in it mid-drag, or the board.
+  var traySlot = document.createElement("div");   // marks where a drop into the tray would land
+  traySlot.className = "tray-slot";
+  function inRect(el, x, y){
+    var r = el.getBoundingClientRect();
+    return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+  }
+  // What a drag released at screen point (x, y) would land on. A tray drop's
+  // index counts the icons whose centers sit left of the pointer.
+  function dropTarget(x, y){
+    if (inRect(trayTrash, x, y)) return { kind: "trash" };
+    if (inRect(tray, x, y)) {
+      var index = 0;
+      trayIcons.querySelectorAll(".tray-icon").forEach(function(icon){
+        var r = icon.getBoundingClientRect();
+        if (r.left + r.width / 2 < x) index++;
+      });
+      return { kind: "tray", index: index };
+    }
+    return { kind: inRect(viewport, x, y) ? "board" : "none" };
+  }
+  function showDropTarget(t){
+    tray.classList.toggle("over", t.kind === "tray");
+    trayTrash.classList.toggle("over", t.kind === "trash");
+    if (t.kind !== "tray") { traySlot.remove(); return; }
+    var before = trayIcons.querySelectorAll(".tray-icon")[t.index] || null;
+    if (traySlot.parentNode !== trayIcons || traySlot.nextSibling !== before) trayIcons.insertBefore(traySlot, before);
+  }
+  // While anything is being dragged the tray outlines itself and shows the trash.
+  function trayDragging(on){
+    tray.classList.toggle("dragging", on);
+    if (!on) showDropTarget({ kind: "none" });
+  }
+  function toTray(cards, index){
+    takeOffBoard(cards);
+    state.tray.splice.apply(state.tray, [index, 0].concat(cards));
+    renderTray();
+    saveState();
+  }
+  function renderTray(){
+    trayIcons.innerHTML = "";
+    state.tray.forEach(function(card){
+      var deck = DECK_MAP[card.deckKey];
+      var icon = document.createElement("div");
+      icon.className = "tray-icon";
+      icon.title = deck.name + " " + card.number;
+      icon.style.setProperty("--card-color", deck.color);
+      icon.textContent = card.number;
+      var img = document.createElement("img");
+      img.alt = "";
+      img.draggable = false;
+      img.style.transform = "rotate(" + (card.rotation || 0) + "deg)";
+      setArt(img, card);
+      icon.appendChild(img);
+      icon.addEventListener("mousedown", function(e){ dragFromTray(e, card, icon); });
+      trayIcons.appendChild(icon);
+    });
+  }
+  // Drag a tray icon to reorder it, drop it back on the board, or trash it.
+  // The icon floats under the pointer while the slot shows where it would land;
+  // released anywhere else, it just goes back where it was.
+  function dragFromTray(e, card, icon){
+    if (e.button !== 0) return;
+    e.preventDefault();
+    var start = { x: e.clientX, y: e.clientY };
+    var grab = icon.getBoundingClientRect();
+    var dragging = false;
+    var target = { kind: "none" };
+    function onMove(ev){
+      if (!dragging) {
+        if (Math.abs(ev.clientX - start.x) < 3 && Math.abs(ev.clientY - start.y) < 3) return;
+        dragging = true;
+        icon.classList.add("ghost");
+        document.body.appendChild(icon);
+        trayDragging(true);
+      }
+      icon.style.transform = "translate3d(" + (grab.left + ev.clientX - start.x) + "px, " + (grab.top + ev.clientY - start.y) + "px, 0)";
+      target = dropTarget(ev.clientX, ev.clientY);
+      showDropTarget(target);
+    }
+    function onUp(ev){
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      if (!dragging) return;
+      icon.remove();
+      trayDragging(false);
+      if (target.kind !== "none") {
+        state.tray.splice(state.tray.indexOf(card), 1);
+        if (target.kind === "tray") {
+          state.tray.splice(target.index, 0, card);
+        } else if (target.kind === "board") {
+          // Center the card under the pointer.
+          var r = viewport.getBoundingClientRect();
+          var p = screenToCanvas(ev.clientX - r.left, ev.clientY - r.top);
+          card.x = snap(card, p.x - 95);
+          card.y = snap(card, p.y - 95);
+          placeOnBoard(card);
+        }
+        saveState();
+      }
+      renderTray();
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+  // Once the tray overflows, a plain mouse wheel scrolls it sideways.
+  trayIcons.addEventListener("wheel", function(e){
+    if (!e.deltaY) return;
+    e.preventDefault();
+    trayIcons.scrollLeft += e.deltaY;
+  }, { passive: false });
   document.getElementById("clearBoard").addEventListener("click", function(){
     if (state.cards.length === 0) return;
-    if (!confirm("Remove all cards from the board? Deck counts are unaffected.")) return;
+    if (!confirm("Remove all cards from the board? Deck counts and the tray are unaffected.")) return;
     state.cards = [];
     canvasLayer.innerHTML = outlineLayer.innerHTML = "";
     updateEmptyState();
@@ -1353,6 +1549,7 @@
   if (!state.pan.x && !state.pan.y) { state.pan = { x: 40, y: 40 }; }
   applyTransform();
   renderAllCards();
+  renderTray();
   if (window.requestIdleCallback) {
     requestIdleCallback(preloadCardImages);
   } else {
