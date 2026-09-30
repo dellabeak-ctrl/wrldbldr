@@ -309,12 +309,15 @@
   /* ---------- Cards (image only, no chrome) ---------- */
   .card{
     position:absolute; top:0; left:0; width:190px; height:190px;
-    cursor:grab; will-change:transform; backface-visibility:hidden;
+    cursor:grab;
   }
+  /* Only promote cards to their own layer mid-drag. A permanently promoted
+     layer is rasterized once and then stretched when the board zooms, which
+     blurs the art; without it the browser redraws each card sharply. */
+  .card.moving{ will-change:transform; }
   .card:active{ cursor:grabbing; }
   .card-art-wrap{
     position:relative; width:100%; height:100%; overflow:hidden; border-radius:5.5px;
-    will-change:transform; backface-visibility:hidden;
   }
   .card-art{
     position:absolute; inset:0; width:100%; height:100%;
@@ -1389,7 +1392,7 @@
     // Position via a compositor-only transform (not left/top) so dragging
     // never triggers layout/paint — this is what was causing the smeared
     // trailing lines and the janky feel while moving cards.
-    el.style.transform = "translate3d(" + card.x + "px, " + card.y + "px, 0)";
+    el.style.transform = "translate(" + card.x + "px, " + card.y + "px)";
     el.style.zIndex = card.z;
     // Its backdrop lives in #outlineLayer (below all cards, where it can blend
     // with the glow and ink) and moves wherever the card moves.
@@ -1468,7 +1471,7 @@
       function applyPosition(){
         rafId = null;
         group.forEach(function(m){
-          m.el.style.transform = m.el.backdrop.style.transform = "translate3d(" + m.card.x + "px, " + m.card.y + "px, 0)";
+          m.el.style.transform = m.el.backdrop.style.transform = "translate(" + m.card.x + "px, " + m.card.y + "px)";
         });
         updateRegionAuras();
       }
@@ -1480,7 +1483,7 @@
           // Ignore the wobble of a plain click, so it doesn't snap the cards or re-bloom their ink.
           if (Math.abs(ev.clientX - start.x) < 3 && Math.abs(ev.clientY - start.y) < 3) return;
           dragging = true;
-          group.forEach(function(m){ liftInk(m.card); });
+          group.forEach(function(m){ liftInk(m.card); m.el.classList.add("moving"); });
         }
         moveBy((ev.clientX - start.x) / state.scale, (ev.clientY - start.y) / state.scale);
         if (rafId === null) rafId = requestAnimationFrame(applyPosition);
@@ -1490,6 +1493,7 @@
         window.removeEventListener("mouseup", onUp);
         if (!dragging) return;
         if (rafId !== null) cancelAnimationFrame(rafId);
+        group.forEach(function(m){ m.el.classList.remove("moving"); });
         // Snap the grabbed card, then shift the rest by the same amount so
         // tucked cards keep their exact offsets from it.
         moveBy(snap(card.x, el.offsetWidth) - group[0].x, snap(card.y, el.offsetHeight) - group[0].y);
