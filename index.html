@@ -183,46 +183,21 @@
   /* ---------- Pack activation effects ---------- */
   .pack-fx{ position:fixed; inset:0; pointer-events:none; z-index:150; overflow:hidden; }
   .pack-fx > *{ position:absolute; }
-  /* Classic: a shrub pops up, shakes loose some leaves, and something peeks out */
-  .fx-shrub{
-    width:84px; height:68px; transform-origin:50% 100%;
-    animation:shrub-life 2.9s ease-out forwards;
-  }
-  .fx-shrub svg{ display:block; width:100%; height:100%; overflow:visible; }
-  @keyframes shrub-life{
-    0%   { transform:scale(0); }
-    12%  { transform:scale(1.12, .92); }
-    18%  { transform:scale(.96, 1.05); }
-    23%  { transform:scale(1); }
-    28%  { transform:rotate(-6deg); }
-    33%  { transform:rotate(6deg); }
-    38%  { transform:rotate(-4deg); }
-    43%  { transform:rotate(3deg); }
-    48%  { transform:rotate(0); }
-    86%  { transform:scale(1); opacity:1; }
-    100% { transform:scale(0); opacity:0; }
-  }
-  .fx-critter{ opacity:0; animation:critter-peek 2.9s ease-out forwards; }
-  @keyframes critter-peek{
-    0%, 45% { opacity:0; transform:translateY(5px); }
-    52%, 84% { opacity:1; transform:translateY(0); }
-    90%, 100% { opacity:0; transform:translateY(5px); }
-  }
-  .fx-eye{ transform-box:fill-box; transform-origin:50% 50%; animation:critter-blink 2.9s linear forwards; }
-  @keyframes critter-blink{ 0%, 66%, 71%, 100% { transform:scaleY(1); } 68.5% { transform:scaleY(.1); } }
-  .fx-pupils{ animation:critter-look 2.9s ease-in-out forwards; }
-  @keyframes critter-look{ 0%, 56% { transform:translateX(0); } 60%, 70% { transform:translateX(-1.5px); } 75%, 100% { transform:translateX(1.5px); } }
-  .fx-leaf{
-    width:9px; height:6px; border-radius:0 100% 0 100%;
-    background:var(--leaf); opacity:0;
-    animation:leaf-fall 1.9s ease-in forwards; animation-delay:var(--delay);
-  }
-  @keyframes leaf-fall{
-    0%   { opacity:0; transform:translate(0, 0) rotate(0); }
-    8%   { opacity:1; }
-    40%  { transform:translate(calc(var(--dx) * .6), 22px) rotate(calc(var(--rot) * .5)); }
-    100% { opacity:0; transform:translate(var(--dx), 70px) rotate(var(--rot)); }
-  }
+  /* Classic: a little traveller strolls out from the top-left of the workspace,
+     leaving a dashed map trail behind them */
+  .fx-trail, .fx-walker{ animation:trail-fade 3.2s ease forwards; }
+  .fx-trail{ left:0; top:0; width:100%; height:100%; overflow:visible; }
+  @keyframes trail-fade{ 0%, 84% { opacity:1; } 100% { opacity:0; } }
+  .fx-walker{ left:0; top:0; width:28px; height:34px; will-change:transform; }
+  .fx-walker svg{ display:block; width:100%; height:100%; overflow:visible; }
+  .fx-walker-body{ animation:walker-bob .17s ease-in-out infinite alternate; }
+  @keyframes walker-bob{ from { transform:translateY(0); } to { transform:translateY(-1.5px); } }
+  .fx-leg{ transform-box:fill-box; transform-origin:50% 0; animation:walker-step .34s ease-in-out infinite alternate; }
+  .fx-leg.b{ animation-delay:-.34s; }
+  @keyframes walker-step{ from { transform:rotate(-24deg); } to { transform:rotate(24deg); } }
+  .fx-walker.arrived .fx-walker-body, .fx-walker.arrived .fx-leg{ animation:none; }
+  .fx-walker.arrived svg{ animation:walker-hop .45s cubic-bezier(.3,1.6,.6,1); }
+  @keyframes walker-hop{ 40% { transform:translateY(-6px); } }
   /* Classic also strings a leafy vine along the underside of the top bar */
   .fx-vines{ left:0; right:0; top:52px; height:80px; animation:frost-line 3s ease forwards; }
   .fx-vines svg{ display:block; width:100%; height:100%; overflow:visible; }
@@ -237,7 +212,7 @@
     animation:vine-leaf-pop .35s cubic-bezier(.34,1.56,.64,1) forwards; animation-delay:var(--delay);
   }
   @keyframes vine-leaf-pop{ to { transform:scale(1); } }
-  /* Frozen: icicles grow down from the top bar while snow drifts past the box */
+  /* Arctic: icicles grow down from the top bar while snow drifts past the box */
   .fx-frost{
     left:0; right:0; top:55px; height:3px;
     background:linear-gradient(90deg, transparent, rgba(220,240,255,.85) 15%, rgba(220,240,255,.85) 85%, transparent);
@@ -271,7 +246,7 @@
   }
   .deck{
     background:#252a3b; border:1px solid var(--panel-border); border-radius:8px;
-    padding:10px 10px; margin-bottom:10px; cursor:pointer;
+    padding:5px 6px 6px 12px; margin-bottom:6px; cursor:pointer;
     transition: transform .08s ease, background .15s ease;
     position:relative; overflow:hidden;
   }
@@ -281,13 +256,16 @@
     content:""; position:absolute; left:0; top:0; bottom:0; width:5px;
     background:var(--deck-color);
   }
-  .deck-name{ font-size:13.5px; font-weight:600; margin-bottom:2px; }
-  .deck-desc{ font-size:11px; color:var(--text-dim); margin-bottom:8px; line-height:1.35; }
-  .deck-row{ display:flex; align-items:center; justify-content:space-between; }
-  .deck-count{ font-size:11px; color:var(--text-dim); }
+  .deck-row{ display:flex; align-items:center; gap:6px; }
+  .deck-name{ font-size:13px; font-weight:600; flex:1; min-width:0; }
+  .deck-desc{
+    font-size:10.5px; color:var(--text-dim); line-height:1.3;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .deck-count{ font-size:11px; color:var(--text-dim); font-variant-numeric:tabular-nums; }
   .deck-reshuffle{
     background:none; border:none; color:var(--text-dim); cursor:pointer;
-    font-size:13px; padding:2px 5px; border-radius:4px;
+    font-size:12px; line-height:1; padding:2px 4px; border-radius:4px;
   }
   .deck-reshuffle:hover{ background:#3a4059; color:var(--text); }
   .deck.empty .deck-count{ color:#e8a33d; }
@@ -587,21 +565,21 @@
   // like [1, 4, 9]. A card listed in both packs is only dealt once.
   var PACKS = [
     { key:"classic", name:"Classic" },
-    { key:"frozen",  name:"Frozen"  }
+    { key:"arctic",  name:"Arctic"  }
   ];
   var DECKS = [
     { key:"region",    name:"Region",    desc:"Main terrain type", color:"var(--c-region)", layer:600000,
-      packs:{ classic:range(1, 32), frozen:range(33, 40) } },
+      packs:{ classic:range(1, 32), arctic:range(33, 40) } },
     { key:"landmark",  name:"Landmark",  desc:"Sites and points of interest",         color:"var(--c-landmark)", layer:500000,
-      packs:{ classic:range(1, 48), frozen:range(49, 60) } },
+      packs:{ classic:range(1, 48), arctic:range(49, 60) } },
     { key:"namesake",  name:"Namesake",  desc:"In-world nicknames for areas",  color:"var(--c-namesake)", layer:400000,
-      packs:{ classic:range(1, 48), frozen:range(49, 60) } },
+      packs:{ classic:range(1, 48), arctic:range(49, 60) } },
     { key:"origin",    name:"Origin",    desc:"Significant past event(s)",  color:"var(--c-origin)", layer:300000,
-      packs:{ classic:range(1, 32), frozen:range(33, 40) } },
+      packs:{ classic:range(1, 32), arctic:range(33, 40) } },
     { key:"attribute", name:"Attribute", desc:"Present-day features",   color:"var(--c-attribute)", layer:200000,
-      packs:{ classic:range(1, 48), frozen:range(49, 60) } },
+      packs:{ classic:range(1, 48), arctic:range(49, 60) } },
     { key:"advent",    name:"Advent",    desc:"Future events and story hooks", color:"var(--c-advent)", layer:100000,
-      packs:{ classic:range(1, 32), frozen:range(33, 40) } }
+      packs:{ classic:range(1, 32), arctic:range(33, 40) } }
   ];
   var DECK_MAP = {};
   DECKS.forEach(function(d){ DECK_MAP[d.key] = d; });
@@ -662,6 +640,11 @@
       state = Object.assign(state, parsed);
       // Boards saved before packs existed were dealt from the classic cards only.
       if (!parsed.packs) state.packs = legacyPacks();
+      // The "frozen" pack was renamed to "arctic".
+      else if ("frozen" in parsed.packs) {
+        state.packs.arctic = parsed.packs.frozen;
+        delete state.packs.frozen;
+      }
       return true;
     } catch (e) {
       return false;
@@ -987,76 +970,135 @@
       return el;
     }
     if (key === "classic") {
-      // Sprout in the workspace's top-left corner, beside the Packs dropdown.
-      var packsBox = document.getElementById("packs").getBoundingClientRect();
-      var sx = document.getElementById("sidebar").getBoundingClientRect().right + 14;
-      var sy = packsBox.top + 68;
-      var shrub = add("fx-shrub", { left:sx + "px", top:(sy - 68) + "px" });
-      shrub.innerHTML =
-        '<svg viewBox="0 0 84 68" aria-hidden="true">' +
-          '<ellipse cx="42" cy="65" rx="34" ry="4" fill="rgba(0,0,0,.25)"/>' +
-          '<circle cx="20" cy="46" r="17" fill="#3f7a37"/>' +
-          '<circle cx="64" cy="46" r="17" fill="#3f7a37"/>' +
-          '<circle cx="42" cy="32" r="22" fill="#4c9142"/>' +
-          '<circle cx="28" cy="24" r="12" fill="#58a44c"/>' +
-          '<circle cx="58" cy="26" r="11" fill="#58a44c"/>' +
-          '<ellipse cx="42" cy="52" rx="34" ry="14" fill="#468a3d"/>' +
-          '<ellipse cx="42" cy="42" rx="14" ry="9" fill="#1c3519"/>' +
-          '<g class="fx-critter">' +
-            '<path d="M31 36 l3 -8 l4 6 z M53 36 l-3 -8 l-4 6 z" fill="#8a6a4a"/>' +
-            '<ellipse class="fx-eye" cx="36.5" cy="41" rx="4" ry="4.4" fill="#fff"/>' +
-            '<ellipse class="fx-eye" cx="47.5" cy="41" rx="4" ry="4.4" fill="#fff"/>' +
-            '<g class="fx-pupils"><circle cx="37" cy="41.5" r="2.1" fill="#1a1a1a"/><circle cx="48" cy="41.5" r="2.1" fill="#1a1a1a"/></g>' +
-            '<ellipse cx="42" cy="46.5" rx="1.6" ry="1.1" fill="#e89aa8"/>' +
+      // A traveller sets out from the workspace's top-left corner on a
+      // meandering route, a dashed trail unspooling behind them.
+      var vp = document.getElementById("viewport").getBoundingClientRect();
+      var pts = [[vp.left + 26, vp.top + 74]];
+      for (var p = 0; p < 5; p++) {
+        var last = pts[pts.length - 1];
+        pts.push([last[0] + rand(70, 125), Math.max(vp.top + 60, last[1] + rand(-22, 48))]);
+      }
+      // Catmull-Rom through the waypoints, as cubic Béziers.
+      var trailD = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+      for (var s = 0; s < pts.length - 1; s++) {
+        var p0 = pts[Math.max(s - 1, 0)], p1 = pts[s], p2 = pts[s + 1], p3 = pts[Math.min(s + 2, pts.length - 1)];
+        trailD += " C" + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + " " + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) +
+          " " + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + " " + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) +
+          " " + p2[0].toFixed(1) + " " + p2[1].toFixed(1);
+      }
+      var trail = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      trail.setAttribute("class", "fx-trail");
+      trail.setAttribute("aria-hidden", "true");
+      trail.innerHTML =
+        '<defs><mask id="fx-trail-mask" maskUnits="userSpaceOnUse">' +
+          '<path class="fx-trail-reveal" d="' + trailD + '" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round"/>' +
+        '</mask></defs>' +
+        '<path d="' + trailD + '" mask="url(#fx-trail-mask)" fill="none" stroke="#5b4128" stroke-opacity=".85" ' +
+          'stroke-width="2.4" stroke-dasharray="7 7" stroke-linecap="round"/>';
+      fx.appendChild(trail);
+      var walker = add("fx-walker", {});
+      walker.innerHTML =
+        '<svg viewBox="0 0 28 34" aria-hidden="true">' +
+          '<ellipse cx="14" cy="32.5" rx="7" ry="1.8" fill="rgba(0,0,0,.25)"/>' +
+          '<rect class="fx-leg" x="10.6" y="23" width="2.4" height="9" rx="1.2" fill="#4a3424"/>' +
+          '<rect class="fx-leg b" x="15" y="23" width="2.4" height="9" rx="1.2" fill="#4a3424"/>' +
+          '<g class="fx-walker-body">' +
+            '<rect x="4.5" y="12" width="7" height="10" rx="2" fill="#8a5a2b"/>' +
+            '<ellipse cx="14.5" cy="19" rx="6.5" ry="6.8" fill="#b4472f"/>' +
+            '<circle cx="15.5" cy="10" r="4.8" fill="#f1d2a8"/>' +
+            '<circle cx="18" cy="9.6" r=".9" fill="#222"/>' +
+            '<ellipse cx="15.5" cy="7.4" rx="7.5" ry="1.5" fill="#3f5f34"/>' +
+            '<path d="M10.5 7.4 L15 -.5 L20 7.4 Z" fill="#4c7340"/>' +
+            '<line x1="23" y1="5" x2="21.4" y2="32" stroke="#6b4a2a" stroke-width="1.6" stroke-linecap="round"/>' +
           '</g>' +
-          '<circle cx="15" cy="56" r="9" fill="#3a7233"/><circle cx="69" cy="56" r="9" fill="#3a7233"/>' +
         '</svg>';
-      // A scalloped vine grows left to right beneath the top bar, sprouting
-      // leaves (and the odd hanging tendril) as it reaches each spot.
-      var W = window.innerWidth, SWAG = 120, GROW = 0.9;
-      var vineD = "M0 4", bits = "";
-      function vineY(x){  // height of the quadratic swag at x
-        var t = (x % SWAG) / SWAG;
-        return 4 * (1 - t) * (1 - t) + 2 * (1 - t) * t * 26 + 4 * t * t;
-      }
-      function reachedAt(x){ return (x / W) * GROW; }
-      function vineLeaf(x, y, angle, color, delay){
-        return '<g transform="rotate(' + angle.toFixed(0) + ' ' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' +
-          '<path class="fx-vine-leaf" style="--delay:' + delay.toFixed(2) + 's" fill="' + color + '" ' +
-          'd="M' + x.toFixed(1) + ' ' + y.toFixed(1) + ' q5 -5.5 11 0 q-6 5.5 -11 0z"/></g>';
-      }
-      for (var vx = 0; vx < W + SWAG; vx += SWAG) {
-        vineD += " Q" + (vx + SWAG / 2) + " 26 " + (vx + SWAG) + " 4";
-      }
-      for (var lx = rand(4, 16); lx < W; lx += rand(18, 32)) {
-        var ly = vineY(lx), side = Math.random() < 0.5 ? -1 : 1;
-        bits += vineLeaf(lx, ly, side * rand(25, 70) + (side < 0 ? 180 : 0),
-          ["#4c9142", "#58a44c", "#6fb455", "#3f7a37"][Math.floor(rand(0, 4))],
-          reachedAt(lx) + rand(0.02, 0.12));
-      }
-      for (var tx = SWAG / 2 + rand(-10, 10); tx < W; tx += SWAG * Math.ceil(rand(1, 3))) {
-        var ty = vineY(tx), drop = rand(16, 34), at = reachedAt(tx) + 0.1;
-        bits += '<path class="fx-vine" pathLength="1" style="--dur:.45s;--delay:' + at.toFixed(2) + 's" ' +
-          'd="M' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ' q' + rand(-7, 7).toFixed(1) + ' ' + (drop / 2).toFixed(1) +
-          ' ' + rand(-3, 3).toFixed(1) + ' ' + drop.toFixed(1) + '"/>';
-        bits += vineLeaf(tx, ty + drop, 90 + rand(-25, 25), "#58a44c", at + 0.4);
-        if (Math.random() < 0.5) {
-          bits += '<circle class="fx-vine-leaf" style="--delay:' + (at + 0.5).toFixed(2) + 's" cx="' +
-            (tx + 4).toFixed(1) + '" cy="' + (ty + drop * 0.55).toFixed(1) + '" r="2.6" fill="#f3c6d3"/>';
+      var WALK = 2300, walkStart = null, revealPath, trailLen;
+      function walk(now){
+        if (!fx.isConnected) return;
+        if (walkStart === null) {
+          walkStart = now;
+          revealPath = trail.querySelector(".fx-trail-reveal");
+          trailLen = revealPath.getTotalLength();
+          revealPath.setAttribute("stroke-dasharray", trailLen);
         }
+        var t = Math.min((now - walkStart) / WALK, 1);
+        var d = trailLen * (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+        var pt = revealPath.getPointAtLength(d), ahead = revealPath.getPointAtLength(Math.min(d + 2, trailLen));
+        var facing = ahead.x < pt.x ? -1 : 1;
+        revealPath.setAttribute("stroke-dashoffset", trailLen - d);
+        walker.style.transform = "translate(" + (pt.x - 14).toFixed(1) + "px," + (pt.y - 32).toFixed(1) + "px) scaleX(" + facing + ")";
+        if (t < 1) requestAnimationFrame(walk);
+        else walker.classList.add("arrived");
       }
+      requestAnimationFrame(walk);
+      // A scraggly vine grows left to right beneath the top bar: uneven swags,
+      // a thinner strand twisting around it, and leaves, tendrils and flowers
+      // sprouting wherever it happens to reach.
+      var W = window.innerWidth, GROW = 0.9;
+      var leafColors = ["#4c9142", "#58a44c", "#6fb455", "#3f7a37"];
+      function pick(list){ return list[Math.floor(Math.random() * list.length)]; }
+      function reachedAt(x){ return Math.max(x, 0) / W * GROW; }
+      // Random quadratic swags across the screen; returns the path and its segments.
+      function swags(minW, maxW, minSag, maxSag, yJitter){
+        var segs = [], x = -rand(0, 30), y = 4 + rand(-yJitter, yJitter);
+        var d = "M" + x.toFixed(1) + " " + y.toFixed(1);
+        while (x < W) {
+          var w = rand(minW, maxW), ny = 4 + rand(-yJitter, yJitter);
+          var seg = { x0:x, y0:y, cx:x + w * rand(.25, .75), cy:Math.max(y, ny) + rand(minSag, maxSag), x1:x + w, y1:ny };
+          d += " Q" + seg.cx.toFixed(1) + " " + seg.cy.toFixed(1) + " " + seg.x1.toFixed(1) + " " + seg.y1.toFixed(1);
+          segs.push(seg);
+          x += w; y = ny;
+        }
+        return { d:d, segs:segs };
+      }
+      function along(seg, t){
+        var u = 1 - t;
+        return [u * u * seg.x0 + 2 * u * t * seg.cx + t * t * seg.x1,
+                u * u * seg.y0 + 2 * u * t * seg.cy + t * t * seg.y1];
+      }
+      function vineLeaf(x, y, angle, size, color, delay){
+        return '<g transform="translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ') rotate(' + angle.toFixed(0) + ') scale(' + size.toFixed(2) + ')">' +
+          '<path class="fx-vine-leaf" style="--delay:' + delay.toFixed(2) + 's" fill="' + color + '" d="M0 0 q5 -5.5 11 0 q-6 5.5 -11 0z"/></g>';
+      }
+      var main = swags(60, 200, 8, 36, 3), twist = swags(40, 110, 2, 22, 5), bits = "";
+      bits += '<path class="fx-vine" pathLength="1" style="--dur:' + (GROW * 1.1).toFixed(2) + 's;--delay:.1s;stroke-width:1.4;stroke:#3a6b2e" d="' + twist.d + '"/>';
+      main.segs.forEach(function(seg){
+        // A cluster of leaves along each swag, more on some than others.
+        var n = Math.floor(rand(1, 7));
+        for (var k = 0; k < n; k++) {
+          var at = along(seg, rand(.05, .95)), side = Math.random() < 0.5 ? -1 : 1;
+          bits += vineLeaf(at[0], at[1], side * rand(15, 80) + (side < 0 ? 180 : 0), rand(.6, 1.35),
+            pick(leafColors), reachedAt(at[0]) + rand(0.02, 0.18));
+        }
+        // Now and then something hangs from the low point of the swag.
+        var roll = Math.random();
+        if (roll > 0.55) return;
+        var tip = along(seg, rand(.3, .7)), x0 = tip[0], y0 = tip[1], when = reachedAt(x0) + 0.1;
+        var drop = rand(10, 58), lean = rand(-12, 12), ex = x0 + lean * 0.4, ey = y0 + drop;
+        var strand = 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) +
+          ' q' + lean.toFixed(1) + ' ' + (drop / 2).toFixed(1) + ' ' + (lean * 0.4).toFixed(1) + ' ' + drop.toFixed(1);
+        if (roll < 0.2) {  // curly tendril
+          var r = rand(2.5, 5), dir = Math.random() < 0.5 ? 1 : 0;
+          strand += ' a' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 1 ' + dir + ' ' + (dir ? r * 1.4 : -r * 1.4).toFixed(1) + ' ' + (-r * 0.6).toFixed(1) +
+            ' a' + (r * .55).toFixed(1) + ' ' + (r * .55).toFixed(1) + ' 0 1 ' + dir + ' ' + (dir ? -r * .5 : r * .5).toFixed(1) + ' ' + (-r * .4).toFixed(1);
+        }
+        bits += '<path class="fx-vine" pathLength="1" style="--dur:' + rand(.35, .6).toFixed(2) + 's;--delay:' + when.toFixed(2) + 's;stroke-width:' + rand(1.2, 2).toFixed(1) + '" d="' + strand + '"/>';
+        if (roll >= 0.2) {
+          for (var m = 0, mn = Math.floor(rand(0, 3)); m < mn; m++) {
+            var f = rand(.3, .8), mx = x0 + lean * f * .7, my = y0 + drop * f, ms = m % 2 ? 1 : -1;
+            bits += vineLeaf(mx, my, ms * rand(20, 60) + (ms < 0 ? 180 : 0), rand(.5, .9), pick(leafColors), when + 0.2 + f * 0.3);
+          }
+          bits += vineLeaf(ex, ey, 90 + rand(-35, 35), rand(.8, 1.3), "#58a44c", when + 0.4);
+          if (roll < 0.35) {
+            var petal = pick(["#f3c6d3", "#f6e3a1", "#d9c8f2", "#fff4ea"]);
+            bits += '<circle class="fx-vine-leaf" style="--delay:' + (when + 0.5).toFixed(2) + 's" cx="' +
+              (ex + rand(-4, 4)).toFixed(1) + '" cy="' + (y0 + drop * rand(.4, .7)).toFixed(1) + '" r="' + rand(2, 3.4).toFixed(1) + '" fill="' + petal + '"/>';
+          }
+        }
+      });
       add("fx-vines", {}).innerHTML =
-        '<svg aria-hidden="true"><path class="fx-vine" pathLength="1" style="--dur:' + GROW + 's" d="' + vineD + '"/>' + bits + '</svg>';
-      var leafColors = ["#58a44c", "#7cbf5a", "#3f7a37", "#a8c95a"];
-      for (var i = 0; i < 9; i++) {
-        add("fx-leaf", {
-          left:(sx + rand(14, 70)) + "px", top:(sy - rand(46, 62)) + "px",
-          "--leaf":leafColors[i % leafColors.length],
-          "--dx":rand(-34, 34).toFixed(0) + "px", "--rot":rand(-300, 300).toFixed(0) + "deg",
-          "--delay":(0.8 + i * 0.07 + rand(0, 0.15)).toFixed(2) + "s"
-        });
-      }
-    } else if (key === "frozen") {
+        '<svg aria-hidden="true"><path class="fx-vine" pathLength="1" style="--dur:' + GROW + 's" d="' + main.d + '"/>' + bits + '</svg>';
+    } else if (key === "arctic") {
       add("fx-frost", {});
       for (var x = rand(0, 20); x < window.innerWidth; x += rand(16, 40)) {
         var w = rand(6, 14);
@@ -1111,12 +1153,12 @@
       el.className = "deck" + (remaining === 0 ? " empty" : "");
       el.style.setProperty("--deck-color", deck.color);
       el.innerHTML =
-        '<div class="deck-name">' + deck.name + '</div>' +
-        '<div class="deck-desc">' + deck.desc + '</div>' +
         '<div class="deck-row">' +
-          '<span class="deck-count">' + remaining + ' / ' + total + ' left</span>' +
+          '<span class="deck-name">' + deck.name + '</span>' +
+          '<span class="deck-count" title="Cards left">' + remaining + '/' + total + '</span>' +
           '<button class="deck-reshuffle" title="Reshuffle this deck" data-key="' + deck.key + '">↻</button>' +
-        '</div>';
+        '</div>' +
+        '<div class="deck-desc" title="' + deck.desc + '">' + deck.desc + '</div>';
       el.addEventListener("click", function(e){
         if (e.target.classList.contains("deck-reshuffle")) return;
         drawCard(deck.key);
