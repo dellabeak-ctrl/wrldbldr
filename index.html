@@ -212,7 +212,8 @@
     animation:vine-leaf-pop .35s cubic-bezier(.34,1.56,.64,1) forwards; animation-delay:var(--delay);
   }
   @keyframes vine-leaf-pop{ to { transform:scale(1); } }
-  /* Arctic: icicles grow down from the top bar while snow drifts past the box */
+  /* Arctic: icicles grow down from the top bar, snow drifts past the box, and a
+     snowball rolls out across the workspace, growing as it goes */
   .fx-frost{
     left:0; right:0; top:55px; height:3px;
     background:linear-gradient(90deg, transparent, rgba(220,240,255,.85) 15%, rgba(220,240,255,.85) 85%, transparent);
@@ -233,6 +234,12 @@
     75%  { transform:scaleY(1); opacity:1; }
     100% { transform:scaleY(.7) translateY(6px); opacity:0; }
   }
+  .fx-snowball{
+    left:0; top:0; width:60px; height:60px; will-change:transform;
+    filter:drop-shadow(0 3px 4px rgba(40,70,110,.35));
+    animation:trail-fade 3.2s ease forwards;
+  }
+  .fx-snowball svg{ display:block; width:100%; height:100%; overflow:visible; }
   .fx-flake{
     color:#e6f4ff; text-shadow:0 0 4px rgba(170,215,255,.9); line-height:1; opacity:0;
     animation:flake-fall var(--dur) linear forwards; animation-delay:var(--delay);
@@ -244,6 +251,42 @@
     80%  { opacity:.9; }
     100% { opacity:0; transform:translate(calc(var(--sway) * -.5), var(--fall)) rotate(180deg); }
   }
+  /* ---------- Microsetting (guided draw) ---------- */
+  #micro{ margin-bottom:10px; }
+  .micro-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim);
+    margin:0 2px 5px;
+  }
+  .micro-row{ display:flex; gap:6px; }
+  .micro-btn{ flex:1; justify-content:center; padding:6px 8px; font-size:12.5px; }
+  .micro-btn.active{ border-color:var(--accent); color:var(--accent); background:rgba(216,184,106,.1); }
+  /* A card riding under the pointer until it's clicked into place. */
+  .card.carried{
+    pointer-events:none; will-change:transform;
+    filter:drop-shadow(0 14px 22px rgba(0,0,0,.45));
+  }
+  #chooseOne{
+    position:fixed; top:56px; left:196px; right:0; bottom:0; z-index:45;
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background:rgba(12,14,20,.55);
+  }
+  #chooseOne.show{ display:flex; }
+  #chooseOne h2{
+    margin:0; font-family:"Amperzand", serif; font-weight:400; font-size:30px;
+    color:var(--accent); letter-spacing:.5px; text-shadow:0 2px 10px rgba(0,0,0,.5);
+  }
+  #chooseOne .choices{ display:flex; gap:28px; }
+  .choice{
+    position:relative; width:190px; height:190px; border-radius:5.5px; overflow:hidden; cursor:pointer;
+    background:var(--card-face); color:var(--card-color);
+    display:flex; align-items:center; justify-content:center;
+    font-size:38px; font-weight:700; font-family:"Amperzand", Georgia, "Times New Roman", serif;
+    box-shadow:0 10px 26px rgba(0,0,0,.5); outline:3px solid transparent; outline-offset:3px;
+    transition:transform .15s ease, outline-color .15s ease;
+  }
+  .choice:hover{ transform:translateY(-6px); outline-color:var(--accent); }
+  .choice img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #chooseOne .choose-hint{ font-size:12px; color:var(--text-dim); }
   .deck{
     background:#252a3b; border:1px solid var(--panel-border); border-radius:8px;
     padding:5px 6px 6px 12px; margin-bottom:6px; cursor:pointer;
@@ -481,6 +524,7 @@
     </div>
   
     <h2>Microsettings</h2>
+    <p>Press <b>Simple</b> or <b>Complex</b> in the sidebar to be dealt a microsetting one card at a time. Each card follows your mouse — click the board to set it down and the next one is dealt. When two are drawn, pick one under “Choose One” and the other goes to the tray. Press the button again or Esc to stop early.</p>
     <h3>Simple Microsetting</h3>
     <p>Draw one of each card type</p>
     <h3>Complex Microsetting</h3>
@@ -520,6 +564,13 @@
     <summary>Packs <span id="pack-summary"></span></summary>
     <div id="pack-list"></div>
   </details>
+  <div id="micro">
+    <div class="micro-title">Microsetting</div>
+    <div class="micro-row">
+      <button class="btn micro-btn" data-mode="simple" title="Draw and place one card from each deck">Simple</button>
+      <button class="btn micro-btn" data-mode="complex" title="Like Simple, but choose 1 of 2 Landmarks, Namesakes and Attributes">Complex</button>
+    </div>
+  </div>
   <div id="deck-list"></div>
   <div id="sidebar-footer">
     <div id="moodDial" role="slider" tabindex="0" aria-label="Ink mood" aria-valuemin="-1" aria-valuemax="1">
@@ -548,6 +599,11 @@
   <div id="outlineLayer"></div>
   <div id="dotGrid"></div>
   <div id="canvas-layer"></div>
+</div>
+<div id="chooseOne">
+  <h2>Choose One</h2>
+  <div class="choices"></div>
+  <div class="choose-hint">The other card goes to the tray · Esc to stop</div>
 </div>
 <div id="empty-state">Draw a card from a deck on the left to begin building your world.</div>
 <div id="toast"></div>
@@ -829,6 +885,7 @@
         !confirm('Load "' + save.name + '"? This replaces your current board — any unsaved changes will be lost.')) {
       return;
     }
+    stopMicro();
     var snap = JSON.parse(JSON.stringify(save.snapshot));
     state.decks = snap.decks;
     state.packs = snap.packs || legacyPacks();
@@ -969,23 +1026,28 @@
       fx.appendChild(el);
       return el;
     }
-    if (key === "classic") {
-      // A traveller sets out from the workspace's top-left corner on a
-      // meandering route, a dashed trail unspooling behind them.
+    // A random route wandering right (and drifting down) from the workspace's
+    // top-left corner: Catmull-Rom through the waypoints, as cubic Béziers.
+    function meander(startY, legs, minStep, maxStep){
       var vp = document.getElementById("viewport").getBoundingClientRect();
-      var pts = [[vp.left + 26, vp.top + 74]];
-      for (var p = 0; p < 5; p++) {
+      var pts = [[vp.left + 26, vp.top + startY]];
+      for (var p = 0; p < legs; p++) {
         var last = pts[pts.length - 1];
-        pts.push([last[0] + rand(70, 125), Math.max(vp.top + 60, last[1] + rand(-22, 48))]);
+        pts.push([last[0] + rand(minStep, maxStep), Math.max(vp.top + 60, last[1] + rand(-22, 48))]);
       }
-      // Catmull-Rom through the waypoints, as cubic Béziers.
-      var trailD = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+      var d = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
       for (var s = 0; s < pts.length - 1; s++) {
         var p0 = pts[Math.max(s - 1, 0)], p1 = pts[s], p2 = pts[s + 1], p3 = pts[Math.min(s + 2, pts.length - 1)];
-        trailD += " C" + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + " " + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) +
+        d += " C" + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + " " + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) +
           " " + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + " " + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) +
           " " + p2[0].toFixed(1) + " " + p2[1].toFixed(1);
       }
+      return d;
+    }
+    if (key === "classic") {
+      // A traveller sets out from the workspace's top-left corner on a
+      // meandering route, a dashed trail unspooling behind them.
+      var trailD = meander(74, 5, 70, 125);
       var trail = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       trail.setAttribute("class", "fx-trail");
       trail.setAttribute("aria-hidden", "true");
@@ -1107,6 +1169,59 @@
           "--delay":rand(0, 0.45).toFixed(2) + "s"
         });
       }
+      // A snowball rolls out from the workspace's top-left corner, packing on
+      // snow (and leaving a widening track) as it goes.
+      var snowD = meander(rand(66, 96), 5, 75, 135);
+      var track = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      track.setAttribute("class", "fx-trail");
+      track.setAttribute("aria-hidden", "true");
+      track.innerHTML = '<path class="fx-snow-route" d="' + snowD + '" fill="none" stroke="none"/>';
+      fx.appendChild(track);
+      var ball = add("fx-snowball", {});
+      ball.innerHTML =
+        '<svg viewBox="0 0 60 60" aria-hidden="true">' +
+          '<defs><radialGradient id="fx-snow-grad" cx=".38" cy=".34" r=".7">' +
+            '<stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#e8f3fc"/><stop offset="1" stop-color="#b9d4ec"/>' +
+          '</radialGradient></defs>' +
+          '<g class="fx-snowball-spin">' +
+            '<circle cx="30" cy="30" r="29" fill="url(#fx-snow-grad)"/>' +
+            '<circle cx="19" cy="22" r="4" fill="#fff" opacity=".9"/>' +
+            '<circle cx="40" cy="38" r="3" fill="#d3e5f5"/>' +
+            '<circle cx="24" cy="44" r="2.2" fill="#d3e5f5"/>' +
+            '<circle cx="42" cy="18" r="2" fill="#d3e5f5"/>' +
+            '<path d="M14 34 q5 3 10 0" stroke="#c7dcef" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
+            '<path d="M33 26 q4 -3 8 0" stroke="#c7dcef" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
+          '</g>' +
+        '</svg>';
+      var ROLL = 2400, rollStart = null, route, routeLen, spin = 0, lastD = 0, lastMark = -99;
+      function roll(now){
+        if (!fx.isConnected) return;
+        if (rollStart === null) {
+          rollStart = now;
+          route = track.querySelector(".fx-snow-route");
+          routeLen = route.getTotalLength();
+        }
+        var t = Math.min((now - rollStart) / ROLL, 1);
+        var d = routeLen * (0.55 * t + 0.45 * t * t);   // gathers speed as it grows
+        var radius = 4 + 24 * Math.pow(d / routeLen, 1.2);
+        var pt = route.getPointAtLength(d);
+        spin += (d - lastD) / radius * 180 / Math.PI;
+        lastD = d;
+        // Pressed-down snow behind it, as wide as the ball was when it passed.
+        if (d - lastMark > 3) {
+          lastMark = d;
+          var mark = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          mark.setAttribute("cx", pt.x.toFixed(1));
+          mark.setAttribute("cy", pt.y.toFixed(1));
+          mark.setAttribute("r", (radius * 0.45).toFixed(1));
+          mark.setAttribute("fill", "rgba(236,246,255,.8)");
+          track.appendChild(mark);
+        }
+        ball.style.transform = "translate(" + (pt.x - 30).toFixed(1) + "px," + (pt.y - radius - 30 + 1).toFixed(1) + "px) scale(" + (radius / 29).toFixed(3) + ")";
+        ball.firstChild.style.transform = "rotate(" + spin.toFixed(1) + "deg)";
+        if (t < 1) requestAnimationFrame(roll);
+      }
+      requestAnimationFrame(roll);
       for (var j = 0; j < 18; j++) {
         var flake = add("fx-flake", {
           left:rand(r.left - 24, r.right + 30) + "px", top:rand(r.top - 34, r.top + 4) + "px",
@@ -1486,40 +1601,191 @@
   function anyPackActive(){
     return PACKS.some(function(p){ return state.packs[p.key]; });
   }
-  function drawCard(deckKey){
+  function needPack(){
+    if (anyPackActive()) return false;
+    document.getElementById("packs").open = true;
+    toast("Select a pack to draw cards");
+    return true;
+  }
+  // Take the next card off a deck (reshuffling it if it's run dry). Returns
+  // a new card object at (x, y), or null if the selected packs have none.
+  function takeCard(deckKey, x, y){
     var deck = DECK_MAP[deckKey];
-    if (!anyPackActive()) {
-      document.getElementById("packs").open = true;
-      toast("Select a pack to draw cards");
-      return;
-    }
     if (!state.decks[deckKey] || state.decks[deckKey].length === 0) {
       var all = deckCards(deck);
-      if (all.length === 0) { toast("No " + deck.name + " cards in the selected packs"); return; }
+      if (all.length === 0) { toast("No " + deck.name + " cards in the selected packs"); return null; }
       state.decks[deckKey] = shuffled(all);
       toast(deck.name + " deck was empty — reshuffled a fresh set of " + all.length);
     }
-    var number = state.decks[deckKey].pop();
-    var r = viewport.getBoundingClientRect();
-    var center = screenToCanvas(r.width/2, r.height/2);
-    var cascade = state.drawCount % 8;
-    var x = center.x - 95 + cascade * 24;
-    var y = center.y - 95 + cascade * 18;
     // Stacking order is same as category hierarchy
     var z = deck.layer + state.drawCount;
     state.drawCount++;
-    var card = {
+    return {
       id: state.nextId++,
       deckKey: deckKey,
-      number: number,
+      number: state.decks[deckKey].pop(),
       x: x, y: y,
       text: "",
       z: z,
       rotation: 0
     };
+  }
+  function drawCard(deckKey){
+    if (needPack()) return;
+    var r = viewport.getBoundingClientRect();
+    var center = screenToCanvas(r.width/2, r.height/2);
+    var cascade = state.drawCount % 8;
+    var card = takeCard(deckKey, center.x - 95 + cascade * 24, center.y - 95 + cascade * 18);
+    if (!card) return;
     renderDecks();
     placeOnBoard([card]);
   }
+  // ---------- Microsettings ----------
+  // A guided draw: one card per deck, top of the hierarchy down. Each card
+  // rides under the pointer until a click on the board sets it down, then the
+  // next deck's card is dealt. In a complex microsetting some decks deal two,
+  // shown side by side to choose between; the one not chosen goes to the tray.
+  var MICRO_DRAWS = {
+    simple:  {},
+    complex: { landmark: 2, namesake: 2, attribute: 2 }
+  };
+  var micro = null;   // { mode, step, carried, choices } while one is under way
+  var pointer = { x: 0, y: 0 };
+  var chooseOne = document.getElementById("chooseOne");
+  var choicesEl = chooseOne.querySelector(".choices");
+  var microBtns = document.querySelectorAll(".micro-btn");
+  window.addEventListener("mousemove", function(e){ pointer.x = e.clientX; pointer.y = e.clientY; }, true);
+  function startMicro(mode){
+    if (micro) stopMicro();
+    if (needPack()) return;
+    micro = { mode: mode, step: 0, carried: null, choices: null };
+    microBtns.forEach(function(b){ b.classList.toggle("active", b.dataset.mode === mode); });
+    nextMicroStep();
+  }
+  function nextMicroStep(){
+    if (micro.step >= DECKS.length) {
+      finishMicro();
+      toast("Microsetting complete");
+      return;
+    }
+    var deck = DECKS[micro.step++];
+    var count = MICRO_DRAWS[micro.mode][deck.key] || 1;
+    var cards = [];
+    for (var i = 0; i < count; i++) {
+      var c = takeCard(deck.key, 0, 0);
+      if (c) cards.push(c);
+    }
+    renderDecks();
+    if (cards.length === 0) { nextMicroStep(); return; }
+    if (cards.length === 1) carry(cards[0]);
+    else offerChoice(cards);
+  }
+  // Lay the dealt cards out over the board and wait for one to be picked.
+  function offerChoice(cards){
+    micro.choices = cards;
+    choicesEl.innerHTML = "";
+    cards.forEach(function(card){
+      var el = document.createElement("div");
+      el.className = "choice";
+      el.style.setProperty("--card-color", DECK_MAP[card.deckKey].color);
+      el.title = DECK_MAP[card.deckKey].name + " " + card.number;
+      el.textContent = card.number;
+      var img = document.createElement("img");
+      img.alt = "";
+      img.draggable = false;
+      setArt(img, card);
+      el.appendChild(img);
+      el.addEventListener("click", function(){
+        micro.choices = null;
+        chooseOne.classList.remove("show");
+        cards.forEach(function(other){ if (other !== card) state.tray.push([other]); });
+        renderTray();
+        carry(card);
+      });
+      choicesEl.appendChild(el);
+    });
+    chooseOne.classList.add("show");
+  }
+  // Put a card on the board, riding under the pointer until it's placed.
+  function carry(card){
+    micro.carried = card;
+    followPointer(card);
+    placeOnBoard([card]);
+    var el = document.getElementById("card-" + card.id);
+    el.classList.add("carried");
+    el.style.zIndex = 99999999;
+    toast("Click to place the " + DECK_MAP[card.deckKey].name);
+    (function follow(){
+      if (!micro || micro.carried !== card) return;
+      followPointer(card);
+      el.style.transform = el.backdrop.style.transform = "translate(" + card.x + "px, " + card.y + "px)";
+      if (card.deckKey === "region") updateRegionAuras();
+      requestAnimationFrame(follow);
+    })();
+  }
+  function followPointer(card){
+    var r = viewport.getBoundingClientRect();
+    var p = screenToCanvas(pointer.x - r.left, pointer.y - r.top);
+    card.x = p.x - 95;
+    card.y = p.y - 95;
+  }
+  function settle(card){
+    var el = document.getElementById("card-" + card.id);
+    card.x = snap(card, card.x);
+    card.y = snap(card, card.y);
+    if (el) {
+      el.classList.remove("carried");
+      el.style.zIndex = card.z;
+      el.style.transform = el.backdrop.style.transform = "translate(" + card.x + "px, " + card.y + "px)";
+    }
+  }
+  // A click on the board sets the carried card down (and doesn't start a pan).
+  window.addEventListener("mousedown", function(e){
+    if (!micro || !micro.carried || e.button !== 0 || !inRect(viewport, e.clientX, e.clientY)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    pointer.x = e.clientX; pointer.y = e.clientY;
+    var card = micro.carried;
+    micro.carried = null;
+    followPointer(card);
+    settle(card);
+    saveState();
+    updateRegionAuras();
+    refreshInk();
+    nextMicroStep();
+  }, true);
+  function finishMicro(){
+    micro = null;
+    chooseOne.classList.remove("show");
+    microBtns.forEach(function(b){ b.classList.remove("active"); });
+  }
+  // Stopping early sends anything not yet placed to the tray.
+  function stopMicro(){
+    if (!micro) return;
+    var loose = [];
+    if (micro.carried) {
+      settle(micro.carried);
+      loose.push(micro.carried);
+      takeOffBoard([micro.carried]);
+    }
+    if (micro.choices) loose = loose.concat(micro.choices);
+    loose.forEach(function(card){ state.tray.push([card]); });
+    finishMicro();
+    if (loose.length) {
+      renderTray();
+      saveState();
+      toast("Microsetting stopped — unplaced cards moved to the tray");
+    }
+  }
+  microBtns.forEach(function(b){
+    b.addEventListener("click", function(){
+      if (micro && micro.mode === b.dataset.mode) stopMicro();
+      else startMicro(b.dataset.mode);
+    });
+  });
+  window.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && micro && !infoOverlay.classList.contains("show")) stopMicro();
+  }, true);
   // Put cards (freshly drawn, or back from the tray) on the board.
   function placeOnBoard(cards){
     cards.forEach(function(card){
@@ -1878,6 +2144,7 @@
   document.getElementById("clearBoard").addEventListener("click", function(){
     if (state.cards.length === 0) return;
     if (!confirm("Remove all cards from the board? Deck counts and the tray are unaffected.")) return;
+    stopMicro();
     state.cards = [];
     canvasLayer.innerHTML = outlineLayer.innerHTML = "";
     updateEmptyState();
