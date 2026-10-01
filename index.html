@@ -289,6 +289,10 @@
     transition:transform .15s ease, outline-color .15s ease;
   }
   .choice:hover{ transform:translateY(-6px); outline-color:var(--accent); }
+  .choice-art{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    transition:transform .2s ease;
+  }
   .choice img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   #chooseOne .choose-hint{ font-size:12px; color:var(--text-dim); }
   .deck{
@@ -528,7 +532,7 @@
     </div>
   
     <h2>Microsettings</h2>
-    <p>Press <b>Simple</b> or <b>Complex</b> in the sidebar to be dealt a microsetting one card at a time. Each card follows your mouse — click the board to set it down and the next one is dealt. When two are drawn, pick one under “Choose One” and the other goes to the tray. Press the button again or Esc to stop early.</p>
+    <p>Press <b>Simple</b> or <b>Complex</b> in the sidebar to be dealt a microsetting one card at a time. Each card follows your mouse — right-click to rotate it, then click the board to set it down and the next one is dealt. When two are drawn, right-click either to rotate it, then pick one under “Choose One” and the other goes to the tray. Press the button again or Esc to stop early.</p>
     <h3>Simple Microsetting</h3>
     <p>Draw one of each card type</p>
     <h3>Complex Microsetting</h3>
@@ -1693,12 +1697,21 @@
       el.className = "choice";
       el.style.setProperty("--card-color", DECK_MAP[card.deckKey].color);
       el.title = DECK_MAP[card.deckKey].name + " " + card.number;
-      el.textContent = card.number;
+      var art = document.createElement("div");
+      art.className = "choice-art";
+      art.textContent = card.number;
       var img = document.createElement("img");
       img.alt = "";
       img.draggable = false;
       setArt(img, card);
-      el.appendChild(img);
+      art.appendChild(img);
+      el.appendChild(art);
+      // Right-click turns just this card a quarter turn before choosing.
+      el.addEventListener("contextmenu", function(e){
+        e.preventDefault();
+        card.rotation = ((card.rotation || 0) + 90) % 360;
+        art.style.transform = "rotate(" + card.rotation + "deg)";
+      });
       el.addEventListener("click", function(){
         micro.choices = null;
         chooseOne.classList.remove("show");
@@ -1718,7 +1731,7 @@
     var el = document.getElementById("card-" + card.id);
     el.classList.add("carried");
     el.style.zIndex = 99999999;
-    toast("Click to place the " + DECK_MAP[card.deckKey].name);
+    toast("Click to place the " + DECK_MAP[card.deckKey].name + " · right-click to rotate");
     (function follow(){
       if (!micro || micro.carried !== card) return;
       followPointer(card);
@@ -1743,9 +1756,20 @@
       el.style.transform = el.backdrop.style.transform = "translate(" + card.x + "px, " + card.y + "px)";
     }
   }
-  // A click on the board sets the carried card down (and doesn't start a pan).
+  // A click on the board sets the carried card down (and doesn't start a pan);
+  // a right-click on it turns it a quarter turn first.
   window.addEventListener("mousedown", function(e){
-    if (!micro || !micro.carried || e.button !== 0 || !inRect(viewport, e.clientX, e.clientY)) return;
+    if (!micro || !micro.carried) return;
+    if (e.button === 2) {
+      var turning = micro.carried, cardEl = document.getElementById("card-" + turning.id);
+      if (!cardEl || !inRect(cardEl, e.clientX, e.clientY)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      turning.rotation = ((turning.rotation || 0) + 90) % 360;
+      cardEl.querySelector(".card-art-wrap").style.transform = "rotate(" + turning.rotation + "deg)";
+      return;
+    }
+    if (e.button !== 0 || !inRect(viewport, e.clientX, e.clientY)) return;
     e.preventDefault();
     e.stopPropagation();
     pointer.x = e.clientX; pointer.y = e.clientY;
@@ -1757,6 +1781,11 @@
     updateRegionAuras();
     refreshInk();
     nextMicroStep();
+  }, true);
+  window.addEventListener("contextmenu", function(e){
+    if (!micro || !micro.carried) return;
+    var cardEl = document.getElementById("card-" + micro.carried.id);
+    if (cardEl && inRect(cardEl, e.clientX, e.clientY)) e.preventDefault();
   }, true);
   function finishMicro(){
     micro = null;
