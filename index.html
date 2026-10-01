@@ -237,8 +237,9 @@
   .fx-snowball{
     left:0; top:0; width:60px; height:60px; will-change:transform;
     filter:drop-shadow(0 3px 4px rgba(40,70,110,.35));
-    animation:trail-fade 3.2s ease forwards;
+    animation:trail-fade 1.6s ease forwards;
   }
+  .fx-snow-track{ animation-duration:1.6s; }
   .fx-snowball svg{ display:block; width:100%; height:100%; overflow:visible; }
   .fx-flake{
     color:#e6f4ff; text-shadow:0 0 4px rgba(170,215,255,.9); line-height:1; opacity:0;
@@ -1173,7 +1174,7 @@
       // snow (and leaving a widening track) as it goes.
       var snowD = meander(rand(66, 96), 5, 75, 135);
       var track = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      track.setAttribute("class", "fx-trail");
+      track.setAttribute("class", "fx-trail fx-snow-track");
       track.setAttribute("aria-hidden", "true");
       track.innerHTML = '<path class="fx-snow-route" d="' + snowD + '" fill="none" stroke="none"/>';
       fx.appendChild(track);
@@ -1193,7 +1194,7 @@
             '<path d="M33 26 q4 -3 8 0" stroke="#c7dcef" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
           '</g>' +
         '</svg>';
-      var ROLL = 2400, rollStart = null, route, routeLen, spin = 0, lastD = 0, lastMark = -99;
+      var ROLL = 1200, rollStart = null, route, routeLen, spin = 0, lastD = 0, lastMark = -99;
       function roll(now){
         if (!fx.isConnected) return;
         if (rollStart === null) {
@@ -1203,7 +1204,7 @@
         }
         var t = Math.min((now - rollStart) / ROLL, 1);
         var d = routeLen * (0.55 * t + 0.45 * t * t);   // gathers speed as it grows
-        var radius = 4 + 24 * Math.pow(d / routeLen, 1.2);
+        var radius = 2 + 12 * Math.pow(d / routeLen, 1.2);
         var pt = route.getPointAtLength(d);
         spin += (d - lastD) / radius * 180 / Math.PI;
         lastD = d;
